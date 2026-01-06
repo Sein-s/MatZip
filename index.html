@@ -221,21 +221,49 @@
     }
     .status .ok{ color:#2e7d32; font-weight:700; }
     .status .warn{ color:#d32f2f; font-weight:700; }
+
+    .manage-row{
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      padding:10px;
+      background:#fff;
+    }
+    .manage-top{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .manage-name{ font-weight:700; font-size:13px; }
+    .manage-meta{ font-size:12px; color:#666; margin-top:4px; line-height:1.35; }
+    .manage-actions{ display:flex; gap:8px; flex-shrink:0; }
+    .manage-actions .mini{
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+      cursor:pointer;
+      font-size:12px;
+    }
+    .manage-actions .mini.danger{
+      border-color:#ef4444;
+      color:#ef4444;
+    }
+    .manage-actions .mini:hover{ background:#f3f4f6; }
   </style>
 </head>
+
 <body>
   <div id="sidebar">
     <h3>맛집 리스트</h3>
-    <div class="hint" id="hint">
-      불러오는 중...
-    </div>
+    <div class="hint" id="hint">불러오는 중...</div>
   </div>
 
   <div id="map">
     <button id="homeBtn" type="button">⟲ 원위치</button>
   </div>
 
-  <!-- Modal -->
+  <!-- Add/Edit Modal -->
   <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-header">
@@ -295,16 +323,37 @@
     </div>
   </div>
 
+  <!-- Manage Modal (moved ABOVE script to avoid null refs) -->
+  <div class="modal-backdrop" id="manageBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manageTitle">
+      <div class="modal-header">
+        <div class="modal-title" id="manageTitle">맛집 관리 (수정/삭제)</div>
+        <button class="modal-close" id="manageCloseBtn" aria-label="close">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div style="display:flex; gap:10px; margin-bottom:12px;">
+          <input id="manageSearch" placeholder="검색: 가게명/설명/주소" />
+        </div>
+        <div id="manageList" style="max-height:60vh; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
+        <div class="helper">✏️ 수정은 기존 입력 폼으로 이동합니다. 🗑️ 삭제는 노션에서 숨김(archived) 처리됩니다.</div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     // -------------------------------
-    // Map init
+    // State
     // -------------------------------
     const restaurants = [];
 
     const centerLat = 35.2224405;
     const centerLon = 126.8517018;
 
+    // -------------------------------
+    // Map init
+    // -------------------------------
     const map = L.map("map").setView([centerLat, centerLon], 15);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
@@ -313,9 +362,7 @@
     const sidebar = document.getElementById("sidebar");
     const hint = document.getElementById("hint");
 
-    L.marker([centerLat, centerLon]).bindPopup("<b>첨단 와이어스 파크</b>").addTo(map);
-
-    // ✅ 원위치(홈) 기준값 저장
+    // 홈 기준
     const homeCenter = L.latLng(centerLat, centerLon);
     const homeZoom = map.getZoom();
     const homeBtn = document.getElementById("homeBtn");
@@ -334,6 +381,12 @@
     map.on("moveend zoomend", updateHomeBtnVisibility);
     updateHomeBtnVisibility();
 
+    // Center marker
+    L.marker([centerLat, centerLon]).bindPopup("<b>첨단 와이어스 파크</b>").addTo(map);
+
+    // ✅ 마커 누적 방지용 레이어 그룹
+    const markerLayer = L.layerGroup().addTo(map);
+
     // -------------------------------
     // Gear control
     // -------------------------------
@@ -348,7 +401,10 @@
         btn.innerHTML = "⚙️";
 
         const menu = L.DomUtil.create("div", "gear-menu", wrap);
-        menu.innerHTML = `<div class="gear-item" id="menuAdd">🍽️ 맛집 추가</div>`;
+        menu.innerHTML = `
+          <div class="gear-item" id="menuAdd">🍽️ 맛집 추가</div>
+          <div class="gear-item" id="menuManage">🛠️ 맛집 관리(수정/삭제)</div>
+        `;
 
         L.DomEvent.disableClickPropagation(wrap);
         L.DomEvent.disableScrollPropagation(wrap);
@@ -364,6 +420,11 @@
         menu.querySelector("#menuAdd").addEventListener("click", () => {
           menu.classList.remove("open");
           openModal();
+        });
+
+        menu.querySelector("#menuManage").addEventListener("click", async () => {
+          menu.classList.remove("open");
+          await openManageModal();
         });
 
         return wrap;
@@ -397,8 +458,34 @@
       return await res.json();
     }
 
+    async function updateRestaurant(id, obj) {
+      const res = await fetch("/api/update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...obj }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || "update failed");
+      }
+      return await res.json();
+    }
+
+    async function deleteRestaurant(id) {
+      const res = await fetch("/api/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || "delete failed");
+      }
+      return await res.json();
+    }
+
     // -------------------------------
-    // Modal elements
+    // Modal elements (Add/Edit)
     // -------------------------------
     const modalBackdrop = document.getElementById("modalBackdrop");
     const modalCloseBtn = document.getElementById("modalCloseBtn");
@@ -418,6 +505,7 @@
     const pickModeBtn = document.getElementById("pickModeBtn");
     const addBtn = document.getElementById("addBtn");
     const statusBox = document.getElementById("statusBox");
+    const modalTitle = document.getElementById("modalTitle");
 
     // mode: 'pick' | 'address'
     let mode = "pick";
@@ -426,9 +514,15 @@
     let isPickArmed = false;
     let pendingPin = null;
 
+    // edit state
+    let editingId = null;
+
     function openModal() {
       modalBackdrop.classList.add("open");
       modalBackdrop.setAttribute("aria-hidden", "false");
+      editingId = null;
+      modalTitle.textContent = "맛집 추가";
+      addBtn.textContent = "추가";
       setMode("pick");
       resetFormKeepText(false);
       setStatus();
@@ -438,6 +532,10 @@
       modalBackdrop.classList.remove("open");
       modalBackdrop.setAttribute("aria-hidden", "true");
       disarmPick();
+
+      editingId = null;
+      modalTitle.textContent = "맛집 추가";
+      addBtn.textContent = "추가";
     }
 
     modalCloseBtn.addEventListener("click", closeModal);
@@ -447,7 +545,11 @@
       if (e.target === modalBackdrop) closeModal();
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeModal();
+      if (e.key === "Escape") {
+        // 열린 모달들 닫기(우선순위: 관리 -> 추가)
+        if (manageBackdrop.classList.contains("open")) closeManageModal();
+        else if (modalBackdrop.classList.contains("open")) closeModal();
+      }
     });
 
     // -------------------------------
@@ -477,22 +579,25 @@
     tabAddr.addEventListener("click", () => setMode("address"));
 
     // -------------------------------
-    // Rendering / add
+    // Rendering
     // -------------------------------
     function renderRestaurant(restaurant) {
-      const marker = L.circleMarker([restaurant.lat, restaurant.lon], {
+      const lat = Number(restaurant.lat);
+      const lon = Number(restaurant.lon);
+
+      const marker = L.circleMarker([lat, lon], {
         radius: 8,
         fillColor: "#ff0000",
         color: "#000",
         weight: 1,
         opacity: 1,
         fillOpacity: 0.8,
-      })
-      .bindPopup(
+      }).bindPopup(
         `<b>${escapeHtml(restaurant.name)}</b><br>${escapeHtml(restaurant.menu || "")}` +
         (restaurant.address ? `<br><small>${escapeHtml(restaurant.address)}</small>` : "")
-      )
-      .addTo(map);
+      );
+
+      markerLayer.addLayer(marker);
 
       const div = document.createElement("div");
       div.className = "restaurant";
@@ -502,7 +607,7 @@
         (restaurant.address ? `<div style="font-size:12px;color:#666;">${escapeHtml(restaurant.address)}</div>` : "");
 
       div.addEventListener("click", () => {
-        map.setView([restaurant.lat, restaurant.lon], 16);
+        map.setView([lat, lon], 16);
         marker.openPopup();
       });
 
@@ -510,7 +615,6 @@
     }
 
     function clearRenderedListOnly() {
-      // sidebar의 "맛집 리스트" + hint는 유지하고, 나머지(리스트 항목)만 제거
       const nodes = Array.from(sidebar.querySelectorAll(".restaurant"));
       nodes.forEach(n => n.remove());
     }
@@ -519,8 +623,13 @@
       hint.innerHTML = "📡 노션에서 불러오는 중...";
       try {
         const items = await fetchRestaurantsFromNotion();
+
         restaurants.length = 0;
         clearRenderedListOnly();
+
+        // ✅ 지도 마커도 리셋해서 중복 방지
+        markerLayer.clearLayers();
+
         items.forEach((r) => {
           restaurants.push(r);
           renderRestaurant(r);
@@ -532,38 +641,13 @@
       }
     }
 
-    async function addRestaurantObject(obj) {
-      // 버튼 중복 클릭 방지
-      addBtn.disabled = true;
-      addBtn.textContent = "저장 중...";
-
-      try {
-        // 1) 노션 저장
-        await addRestaurantToNotion(obj);
-
-        // 2) UI 즉시 반영(간단)
-        restaurants.push(obj);
-        renderRestaurant(obj);
-        map.setView([obj.lat, obj.lon], 16);
-
-        closeModal();
-        hint.innerHTML = `✅ <b>${escapeHtml(obj.name)}</b> 추가됨! (공유 링크에서도 동일하게 보여요)`;
-      } catch (e) {
-        console.error(e);
-        alert("노션 저장 실패!\n" + (e.message || e));
-      } finally {
-        addBtn.disabled = false;
-        addBtn.textContent = "추가";
-      }
-    }
-
     function parseLatLon() {
       const lat = Number(String(latInput.value).trim());
       const lon = Number(String(lonInput.value).trim());
       return { lat, lon, ok: Number.isFinite(lat) && Number.isFinite(lon) };
     }
 
-    addBtn.addEventListener("click", () => {
+    addBtn.addEventListener("click", async () => {
       const name = String(nameInput.value || "").trim();
       const menu = String(menuInput.value || "").trim();
       const address = String(addrInput.value || "").trim();
@@ -580,8 +664,31 @@
         return;
       }
 
-      // category는 지금 폼에 없으니 빈 값으로 (노션 코드가 빈 값이면 무시)
-      addRestaurantObject({ name, menu, address, lat, lon, category: "" });
+      const payload = { name, menu, address, lat, lon, category: "" };
+
+      addBtn.disabled = true;
+      const originalText = addBtn.textContent;
+      addBtn.textContent = editingId ? "수정 중..." : "저장 중...";
+
+      try {
+        if (editingId) {
+          await updateRestaurant(editingId, payload);
+          await initRestaurants();
+          hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 수정 완료!`;
+        } else {
+          await addRestaurantToNotion(payload);
+          await initRestaurants();
+          hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 추가 완료!`;
+        }
+
+        closeModal();
+      } catch (e) {
+        console.error(e);
+        alert((editingId ? "수정" : "추가") + " 실패!\n" + (e.message || e));
+      } finally {
+        addBtn.disabled = false;
+        addBtn.textContent = originalText;
+      }
     });
 
     // -------------------------------
@@ -672,7 +779,6 @@
         map.setView([lat, lon], 16);
 
         setStatus("coords_ok");
-
       } catch (err) {
         console.error(err);
         setStatus("geocode_fail");
@@ -713,7 +819,7 @@
         return;
       }
       if (state === "coords_ok" || ok) {
-        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>이제 <b>추가</b>를 누르면 노션 DB에 저장됩니다.`;
+        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>이제 <b>${editingId ? "수정 저장" : "추가"}</b>를 누르면 노션 DB에 저장됩니다.`;
         return;
       }
 
@@ -739,7 +845,124 @@
     }
 
     // -------------------------------
-    // Start: load from Notion
+    // Manage modal
+    // -------------------------------
+    const manageBackdrop = document.getElementById("manageBackdrop");
+    const manageCloseBtn = document.getElementById("manageCloseBtn");
+    const manageSearch = document.getElementById("manageSearch");
+    const manageList = document.getElementById("manageList");
+
+    async function openManageModal() {
+      manageBackdrop.classList.add("open");
+      manageBackdrop.setAttribute("aria-hidden", "false");
+      manageSearch.value = "";
+
+      // ✅ 데이터가 아직 없으면 먼저 로드
+      if (restaurants.length === 0) {
+        await initRestaurants();
+      }
+
+      renderManageList();
+    }
+
+    function closeManageModal() {
+      manageBackdrop.classList.remove("open");
+      manageBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    manageCloseBtn.addEventListener("click", closeManageModal);
+    manageBackdrop.addEventListener("click", (e) => {
+      if (e.target === manageBackdrop) closeManageModal();
+    });
+
+    manageSearch.addEventListener("input", renderManageList);
+
+    function renderManageList() {
+      const q = manageSearch.value.trim().toLowerCase();
+
+      const filtered = restaurants.filter(r => {
+        const blob = `${r.name||""} ${r.menu||""} ${r.address||""}`.toLowerCase();
+        return !q || blob.includes(q);
+      });
+
+      manageList.innerHTML = "";
+
+      if (filtered.length === 0) {
+        manageList.innerHTML = `<div class="helper">검색 결과가 없습니다.</div>`;
+        return;
+      }
+
+      filtered.forEach((r) => {
+        const row = document.createElement("div");
+        row.className = "manage-row";
+
+        row.innerHTML = `
+          <div class="manage-top">
+            <div>
+              <div class="manage-name">${escapeHtml(r.name)}</div>
+              <div class="manage-meta">
+                ${r.menu ? escapeHtml(r.menu) : ""}
+                ${r.address ? `<br/>${escapeHtml(r.address)}` : ""}
+                <br/><span style="color:#999;">${Number(r.lat).toFixed(6)}, ${Number(r.lon).toFixed(6)}</span>
+              </div>
+            </div>
+
+            <div class="manage-actions">
+              <button class="mini" type="button">✏️ 수정</button>
+              <button class="mini danger" type="button">🗑️ 삭제</button>
+            </div>
+          </div>
+        `;
+
+        const [editBtn, delBtn] = row.querySelectorAll("button");
+
+        editBtn.addEventListener("click", () => {
+          closeManageModal();
+          openModalForEdit(r);
+        });
+
+        delBtn.addEventListener("click", async () => {
+          const ok = confirm(`정말 삭제할까요?\n\n${r.name}`);
+          if (!ok) return;
+
+          try {
+            await deleteRestaurant(r.id);
+            await initRestaurants();
+            renderManageList();
+            alert("삭제 완료!");
+          } catch (e) {
+            console.error(e);
+            alert("삭제 실패!\n" + (e.message || e));
+          }
+        });
+
+        manageList.appendChild(row);
+      });
+    }
+
+    function openModalForEdit(r) {
+      modalBackdrop.classList.add("open");
+      modalBackdrop.setAttribute("aria-hidden", "false");
+
+      editingId = r.id;
+
+      // 편집은 주소모드가 더 자연스러워서 주소 블록 보여주기
+      setMode("address");
+
+      nameInput.value = r.name || "";
+      menuInput.value = r.menu || "";
+      addrInput.value = r.address || "";
+      latInput.value = r.lat ?? "";
+      lonInput.value = r.lon ?? "";
+
+      modalTitle.textContent = "맛집 수정";
+      addBtn.textContent = "수정 저장";
+
+      setStatus("coords_ok");
+    }
+
+    // -------------------------------
+    // Start
     // -------------------------------
     initRestaurants();
   </script>
