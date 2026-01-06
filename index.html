@@ -52,6 +52,19 @@
     }
     .gear-item:hover{ background:#f3f4f6; }
 
+    /* ---- Hint ---- */
+    .hint{
+      margin-top:10px;
+      font-size:12px;
+      color:#555;
+      padding:10px;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      line-height:1.45;
+    }
+    .hint b{ color:#1976d2; }
+
     /* ---- Modal ---- */
     .modal-backdrop{
       position:fixed; inset:0;
@@ -63,7 +76,7 @@
     }
     .modal-backdrop.open{ display:flex; }
     .modal{
-      width:min(420px, 100%);
+      width:min(520px, 100%);
       background:#fff;
       border-radius:16px;
       box-shadow:0 16px 40px rgba(0,0,0,.25);
@@ -87,66 +100,117 @@
     .modal-close:hover{ background:#f3f4f6; }
 
     .modal-body{ padding:14px 16px; }
-    .modal-desc{
-      margin:0 0 12px;
-      color:#555;
-      font-size:13px;
-      line-height:1.5;
-    }
-    .choice-row{
+
+    .tabs{
       display:flex;
-      gap:10px;
-      flex-wrap:wrap;
+      gap:8px;
+      margin-bottom:12px;
     }
-    .choice-btn{
-      flex:1 1 160px;
-      padding:12px 12px;
+    .tab{
+      flex:1;
+      padding:10px 10px;
       border-radius:12px;
       border:1px solid #e5e7eb;
       background:#fff;
       cursor:pointer;
-      text-align:left;
+      font-size:13px;
+      text-align:center;
+      user-select:none;
     }
-    .choice-btn:hover{
-      background:#f9fafb;
-      border-color:#d1d5db;
-    }
-    .choice-btn b{
-      display:block;
-      margin-bottom:4px;
-      font-size:14px;
-    }
-    .choice-btn span{
-      display:block;
-      font-size:12px;
-      color:#666;
-      line-height:1.35;
+    .tab.active{
+      border-color:#1976d2;
+      box-shadow:0 0 0 3px rgba(25,118,210,.12);
     }
 
-    /* inline little toast/hint */
-    .hint{
-      margin-top:10px;
+    .form{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    @media (max-width: 480px){
+      .row{ grid-template-columns: 1fr; }
+    }
+
+    label{ font-size:12px; color:#555; display:block; margin-bottom:6px; }
+    input, textarea{
+      width:100%;
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px solid #e5e7eb;
+      outline:none;
+      font-size:13px;
+      box-sizing:border-box;
+      background:#fff;
+    }
+    textarea{ min-height:74px; resize:vertical; }
+
+    input:focus, textarea:focus{
+      border-color:#1976d2;
+      box-shadow:0 0 0 3px rgba(25,118,210,.12);
+    }
+
+    .helper{
+      font-size:12px;
+      color:#666;
+      line-height:1.4;
+      margin-top:-4px;
+    }
+    .helper b{ color:#2e7d32; }
+
+    .actions{
+      display:flex;
+      gap:10px;
+      margin-top:4px;
+    }
+    .btn{
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .btn.primary{
+      background:#1976d2;
+      border-color:#1976d2;
+      color:#fff;
+    }
+    .btn.success{
+      background:#2e7d32;
+      border-color:#2e7d32;
+      color:#fff;
+    }
+    .btn:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+
+    .status{
+      margin-top:8px;
       font-size:12px;
       color:#555;
       padding:10px;
-      background:#fff;
-      border:1px solid #e5e7eb;
+      background:#f9fafb;
+      border:1px dashed #d1d5db;
       border-radius:12px;
+      line-height:1.45;
     }
-    .hint b{ color:#1976d2; }
-
-    /* 작은 화면에서 사이드바 줄이기(옵션) */
-    @media (max-width: 720px){
-      #sidebar{ width: 240px; }
-    }
+    .status .ok{ color:#2e7d32; font-weight:700; }
+    .status .warn{ color:#d32f2f; font-weight:700; }
   </style>
 </head>
 <body>
   <div id="sidebar">
     <h3>맛집 리스트</h3>
     <div class="hint" id="hint">
-      ⚙️를 눌러 <b>맛집 추가</b>를 선택하면<br/>
-      지도 찍기/주소 입력 두 방식 중 골라서 추가할 수 있어요.
+      ⚙️를 눌러 <b>맛집 추가</b>를 선택하세요.<br/>
+      • <b>지도에서 찍기</b>: 지도 클릭 → 좌표 자동 입력<br/>
+      • <b>주소 입력</b>: 주소 검색 → 좌표 자동 입력
     </div>
   </div>
 
@@ -159,17 +223,55 @@
         <div class="modal-title" id="modalTitle">맛집 추가</div>
         <button class="modal-close" id="modalCloseBtn" aria-label="close">✕</button>
       </div>
+
       <div class="modal-body">
-        <p class="modal-desc">추가 방식을 선택하세요.</p>
-        <div class="choice-row">
-          <button class="choice-btn" id="choosePick">
-            <b>📍 지도에서 찍어서 추가</b>
-            <span>지도를 클릭해 좌표를 찍고 가게 정보를 입력합니다.</span>
-          </button>
-          <button class="choice-btn" id="chooseAddress">
-            <b>🏠 주소 입력으로 추가</b>
-            <span>주소를 입력하면 좌표를 자동으로 찾아 추가합니다.</span>
-          </button>
+        <!-- Mode tabs -->
+        <div class="tabs">
+          <div class="tab active" id="tabPick">📍 지도에서 찍기</div>
+          <div class="tab" id="tabAddr">🏠 주소 입력</div>
+        </div>
+
+        <div class="form">
+          <div>
+            <label for="nameInput">가게명 *</label>
+            <input id="nameInput" placeholder="예: 파더스베이글" />
+          </div>
+
+          <div>
+            <label for="menuInput">메뉴/메모</label>
+            <textarea id="menuInput" placeholder="예: 추천 메뉴, 웨이팅, 가격 등"></textarea>
+          </div>
+
+          <div id="addressBlock">
+            <label for="addrInput">주소</label>
+            <input id="addrInput" placeholder="예: 광주 북구 첨단과기로 208번길 ..." />
+            <div class="actions">
+              <button class="btn" id="findCoordsBtn" type="button">주소로 좌표찾기</button>
+            </div>
+            <div class="helper">주소 입력 방식은 <b>좌표찾기</b>를 눌러 위도/경도를 자동 채워요.</div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label for="latInput">위도(lat) *</label>
+              <input id="latInput" placeholder="예: 35.222440" inputmode="decimal" />
+            </div>
+            <div>
+              <label for="lonInput">경도(lon) *</label>
+              <input id="lonInput" placeholder="예: 126.851701" inputmode="decimal" />
+            </div>
+          </div>
+
+          <div class="status" id="statusBox">
+            <span class="warn">좌표가 필요해요.</span>
+            <br/>지도에서 찍기: 모달 열고 <b>지도 클릭</b>하면 자동 입력됩니다.
+          </div>
+
+          <div class="actions">
+            <button class="btn" id="cancelBtn" type="button">취소</button>
+            <button class="btn success" id="pickModeBtn" type="button">지도 클릭으로 좌표 찍기</button>
+            <button class="btn primary" id="addBtn" type="button">추가</button>
+          </div>
         </div>
       </div>
     </div>
@@ -177,10 +279,11 @@
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    // 🔹 초기 장소 리스트
+    // -------------------------------
+    // Map init
+    // -------------------------------
     const restaurants = [];
 
-    // 📍 첨단 와이어스 파크 근처 중심 좌표
     const centerLat = 35.2224405;
     const centerLon = 126.8517018;
 
@@ -192,10 +295,11 @@
     const sidebar = document.getElementById("sidebar");
     const hint = document.getElementById("hint");
 
-    // 중심 마커
     L.marker([centerLat, centerLon]).bindPopup("<b>첨단 와이어스 파크</b>").addTo(map);
 
-    // ---------- UI: Gear Control + Menu ----------
+    // -------------------------------
+    // Gear control
+    // -------------------------------
     const GearControl = L.Control.extend({
       options: { position: "topright" },
       onAdd: function() {
@@ -209,7 +313,6 @@
         const menu = L.DomUtil.create("div", "gear-menu", wrap);
         menu.innerHTML = `<div class="gear-item" id="menuAdd">🍽️ 맛집 추가</div>`;
 
-        // 지도 드래그/줌 이벤트 막기
         L.DomEvent.disableClickPropagation(wrap);
         L.DomEvent.disableScrollPropagation(wrap);
 
@@ -217,12 +320,10 @@
           menu.classList.toggle("open");
         });
 
-        // 메뉴 밖 클릭하면 닫기
         document.addEventListener("click", (e) => {
           if (!wrap.contains(e.target)) menu.classList.remove("open");
         });
 
-        // 메뉴 아이템 클릭
         menu.querySelector("#menuAdd").addEventListener("click", () => {
           menu.classList.remove("open");
           openModal();
@@ -231,25 +332,54 @@
         return wrap;
       }
     });
-
     map.addControl(new GearControl());
 
-    // ---------- Modal ----------
+    // -------------------------------
+    // Modal elements
+    // -------------------------------
     const modalBackdrop = document.getElementById("modalBackdrop");
     const modalCloseBtn = document.getElementById("modalCloseBtn");
-    const choosePick = document.getElementById("choosePick");
-    const chooseAddress = document.getElementById("chooseAddress");
+    const cancelBtn = document.getElementById("cancelBtn");
+
+    const tabPick = document.getElementById("tabPick");
+    const tabAddr = document.getElementById("tabAddr");
+
+    const nameInput = document.getElementById("nameInput");
+    const menuInput = document.getElementById("menuInput");
+    const addrInput = document.getElementById("addrInput");
+    const latInput = document.getElementById("latInput");
+    const lonInput = document.getElementById("lonInput");
+
+    const addressBlock = document.getElementById("addressBlock");
+    const findCoordsBtn = document.getElementById("findCoordsBtn");
+    const pickModeBtn = document.getElementById("pickModeBtn");
+    const addBtn = document.getElementById("addBtn");
+    const statusBox = document.getElementById("statusBox");
+
+    // mode: 'pick' | 'address'
+    let mode = "pick";
+
+    // pick mode state
+    let isPickArmed = false;
+    let pendingPin = null;
 
     function openModal() {
       modalBackdrop.classList.add("open");
       modalBackdrop.setAttribute("aria-hidden", "false");
+      setMode("pick");
+      resetFormKeepText(false);
+      setStatus();
     }
+
     function closeModal() {
       modalBackdrop.classList.remove("open");
       modalBackdrop.setAttribute("aria-hidden", "true");
+      disarmPick();
     }
 
     modalCloseBtn.addEventListener("click", closeModal);
+    cancelBtn.addEventListener("click", closeModal);
+
     modalBackdrop.addEventListener("click", (e) => {
       if (e.target === modalBackdrop) closeModal();
     });
@@ -257,7 +387,35 @@
       if (e.key === "Escape") closeModal();
     });
 
-    // ---------- Data rendering ----------
+    // -------------------------------
+    // Mode switching
+    // -------------------------------
+    function setMode(next) {
+      mode = next;
+
+      if (mode === "pick") {
+        tabPick.classList.add("active");
+        tabAddr.classList.remove("active");
+
+        addressBlock.style.display = "none";
+        pickModeBtn.style.display = "inline-block";
+      } else {
+        tabAddr.classList.add("active");
+        tabPick.classList.remove("active");
+
+        addressBlock.style.display = "block";
+        pickModeBtn.style.display = "none";
+        disarmPick(); // 주소 모드로 바꾸면 찍기 해제
+      }
+      setStatus();
+    }
+
+    tabPick.addEventListener("click", () => setMode("pick"));
+    tabAddr.addEventListener("click", () => setMode("address"));
+
+    // -------------------------------
+    // Rendering / add
+    // -------------------------------
     function renderRestaurant(restaurant) {
       const marker = L.circleMarker([restaurant.lat, restaurant.lon], {
         radius: 8,
@@ -268,8 +426,8 @@
         fillOpacity: 0.8,
       })
       .bindPopup(
-        `<b>${escapeHtml(restaurant.name)}</b><br>${escapeHtml(restaurant.menu)}`
-        + (restaurant.address ? `<br><small>${escapeHtml(restaurant.address)}</small>` : "")
+        `<b>${escapeHtml(restaurant.name)}</b><br>${escapeHtml(restaurant.menu || "")}` +
+        (restaurant.address ? `<br><small>${escapeHtml(restaurant.address)}</small>` : "")
       )
       .addTo(map);
 
@@ -277,7 +435,7 @@
       div.className = "restaurant";
       div.innerHTML =
         `<b>${escapeHtml(restaurant.name)}</b>` +
-        `<div>${escapeHtml(restaurant.menu)}</div>` +
+        `<div>${escapeHtml(restaurant.menu || "")}</div>` +
         (restaurant.address ? `<div style="font-size:12px;color:#666;">${escapeHtml(restaurant.address)}</div>` : "");
 
       div.addEventListener("click", () => {
@@ -292,58 +450,98 @@
       restaurants.push(obj);
       renderRestaurant(obj);
       map.setView([obj.lat, obj.lon], 16);
+      closeModal();
+      hint.innerHTML = `✅ <b>${escapeHtml(obj.name)}</b> 추가됨! (⚙️에서 계속 추가 가능)`;
     }
 
-    // ---------- Mode: pick-on-map ----------
-    let isPickMode = false;
-    let pendingPin = null;
-
-    function setHint(html) {
-      hint.innerHTML = html;
+    function parseLatLon() {
+      const lat = Number(String(latInput.value).trim());
+      const lon = Number(String(lonInput.value).trim());
+      return { lat, lon, ok: Number.isFinite(lat) && Number.isFinite(lon) };
     }
 
-    function startPickMode() {
-      isPickMode = true;
-      setHint(`📍 <b>지도에서 위치를 클릭</b>하면 맛집 추가가 진행돼요.<br/>원하는 위치를 찍어주세요.`);
-      // 커서 느낌(데스크탑에서만 잘 보임)
+    addBtn.addEventListener("click", () => {
+      const name = String(nameInput.value || "").trim();
+      const menu = String(menuInput.value || "").trim();
+      const address = String(addrInput.value || "").trim();
+      const { lat, lon, ok } = parseLatLon();
+
+      if (!name) {
+        alert("가게명을 입력해주세요.");
+        nameInput.focus();
+        return;
+      }
+      if (!ok) {
+        alert("위도/경도를 올바르게 입력하거나 자동으로 채워주세요.");
+        latInput.focus();
+        return;
+      }
+
+      addRestaurantObject({ name, menu, address, lat, lon });
+    });
+
+    // -------------------------------
+    // Pick on map
+    // -------------------------------
+    function armPick() {
+      isPickArmed = true;
       document.getElementById("map").style.cursor = "crosshair";
+      pickModeBtn.textContent = "지도를 클릭해 좌표를 찍어주세요...";
+      pickModeBtn.disabled = true;
+
+      setStatus("pick_armed");
     }
 
-    function stopPickMode() {
-      isPickMode = false;
-      setHint(`⚙️를 눌러 <b>맛집 추가</b>를 선택하면<br/>지도 찍기/주소 입력 두 방식 중 골라서 추가할 수 있어요.`);
+    function disarmPick() {
+      isPickArmed = false;
       document.getElementById("map").style.cursor = "";
+      pickModeBtn.textContent = "지도 클릭으로 좌표 찍기";
+      pickModeBtn.disabled = false;
+
       if (pendingPin) {
         map.removeLayer(pendingPin);
         pendingPin = null;
       }
+      setStatus();
     }
 
+    pickModeBtn.addEventListener("click", () => {
+      // pick 탭에서만 의미 있음
+      if (mode !== "pick") return;
+      armPick();
+    });
+
     map.on("click", (e) => {
-      if (!isPickMode) return;
+      if (!modalBackdrop.classList.contains("open")) return; // 모달 열렸을 때만
+      if (mode !== "pick") return;
+      if (!isPickArmed) return;
 
       const lat = Number(e.latlng.lat.toFixed(6));
       const lon = Number(e.latlng.lng.toFixed(6));
 
+      latInput.value = String(lat);
+      lonInput.value = String(lon);
+
       if (pendingPin) map.removeLayer(pendingPin);
       pendingPin = L.marker([lat, lon]).addTo(map).bindPopup(`선택 좌표<br>${lat}, ${lon}`).openPopup();
+      map.setView([lat, lon], 16);
 
-      const name = prompt(`가게 이름을 입력하세요\n(좌표: ${lat}, ${lon})`);
-      if (!name) return;
-
-      const menu = prompt("메뉴 / 메모를 입력하세요") || "";
-      const address = prompt("주소(선택) - 안 적어도 됨") || "";
-
-      addRestaurantObject({ name, menu, address, lat, lon });
-      stopPickMode();
+      disarmPick();
+      setStatus("coords_ok");
     });
 
-    // ---------- Mode: add-by-address ----------
-    async function addByAddressFlow() {
-      const address = prompt("가게 주소를 입력하세요 (예: 광주 북구 첨단과기로 208번길 ...)");
-      if (!address) return;
+    // -------------------------------
+    // Address -> coords
+    // -------------------------------
+    findCoordsBtn.addEventListener("click", async () => {
+      const address = String(addrInput.value || "").trim();
+      if (!address) {
+        alert("주소를 입력해주세요.");
+        addrInput.focus();
+        return;
+      }
 
-      setHint("🔎 주소로 좌표 찾는 중...");
+      setStatus("geocoding");
 
       const url =
         "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
@@ -355,47 +553,83 @@
 
         const data = await res.json();
         if (!data || data.length === 0) {
+          setStatus("geocode_fail");
           alert("해당 주소로 좌표를 찾지 못했어요. 주소를 더 정확히 적어주세요.");
-          stopPickMode();
           return;
         }
 
         const lat = Number(Number(data[0].lat).toFixed(6));
         const lon = Number(Number(data[0].lon).toFixed(6));
 
+        latInput.value = String(lat);
+        lonInput.value = String(lon);
+
         if (pendingPin) map.removeLayer(pendingPin);
         pendingPin = L.marker([lat, lon]).addTo(map).bindPopup(`검색 위치<br>${lat}, ${lon}`).openPopup();
         map.setView([lat, lon], 16);
 
-        const name = prompt("가게 이름을 입력하세요");
-        if (!name) { stopPickMode(); return; }
-
-        const menu = prompt("메뉴 / 메모를 입력하세요") || "";
-
-        addRestaurantObject({ name, menu, address, lat, lon });
-        stopPickMode();
+        setStatus("coords_ok");
 
       } catch (err) {
         console.error(err);
+        setStatus("geocode_fail");
         alert("주소 검색 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
-        stopPickMode();
+      }
+    });
+
+    // -------------------------------
+    // Form helpers
+    // -------------------------------
+    function resetFormKeepText(keep) {
+      if (!keep) {
+        nameInput.value = "";
+        menuInput.value = "";
+        addrInput.value = "";
+      }
+      latInput.value = "";
+      lonInput.value = "";
+      if (pendingPin) { map.removeLayer(pendingPin); pendingPin = null; }
+      disarmPick();
+    }
+
+    // status display
+    function setStatus(state) {
+      const { ok } = parseLatLon();
+      const isOpen = modalBackdrop.classList.contains("open");
+
+      if (!isOpen) return;
+
+      if (state === "geocoding") {
+        statusBox.innerHTML = `🔎 주소로 좌표 찾는 중...`;
+        return;
+      }
+      if (state === "geocode_fail") {
+        statusBox.innerHTML = `<span class="warn">주소 검색 실패</span><br/>주소를 더 자세히 입력해 주세요.`;
+        return;
+      }
+      if (state === "pick_armed") {
+        statusBox.innerHTML = `📍 <b>지도를 클릭</b>하면 위도/경도가 자동 입력됩니다.`;
+        return;
+      }
+      if (state === "coords_ok" || ok) {
+        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>이제 <b>추가</b>를 누르면 등록됩니다.`;
+        return;
+      }
+
+      // default
+      if (mode === "pick") {
+        statusBox.innerHTML = `<span class="warn">좌표가 필요해요.</span><br/>아래 <b>지도 클릭으로 좌표 찍기</b>를 누른 뒤 지도에서 위치를 클릭하세요.`;
+      } else {
+        statusBox.innerHTML = `<span class="warn">좌표가 필요해요.</span><br/>주소 입력 후 <b>주소로 좌표찾기</b>를 눌러주세요.`;
       }
     }
 
-    // ---------- Modal choices ----------
-    choosePick.addEventListener("click", () => {
-      closeModal();
-      stopPickMode();   // 혹시 이전 모드 있으면 정리
-      startPickMode();
-    });
+    // inputs change -> status update
+    [latInput, lonInput].forEach((el) => el.addEventListener("input", () => setStatus()));
 
-    chooseAddress.addEventListener("click", async () => {
-      closeModal();
-      stopPickMode();
-      await addByAddressFlow();
-    });
-
-    // ---------- XSS 방지용 최소 escape ----------
+    // -------------------------------
+    // Escape HTML
+    // -------------------------------
     function escapeHtml(str) {
       return String(str)
         .replaceAll("&", "&amp;")
