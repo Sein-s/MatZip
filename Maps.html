@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>맛집 지도 - 첨단 와이어스 파크 중심</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body {
+            display: flex;
+            margin: 0;
+        }
+        #sidebar {
+            width: 300px;
+            height: 100vh;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 10px;
+        }
+        #map {
+            flex-grow: 1;
+            height: 100vh;
+        }
+        .restaurant {
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar"><h3>맛집 리스트</h3></div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // 🔹 초기 장소 리스트 비워둠
+        const restaurants = [];
+
+        // 📍 첨단 와이어스 파크 근처 중심 좌표
+        const centerLat = 35.1600;
+        const centerLon = 126.8800;
+
+        const map = L.map('map').setView([centerLat, centerLon], 15);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        const sidebar = document.getElementById('sidebar');
+
+        // 🌟 현재 위치 마커(옵션) - 필요하면 켜고 끌 수 있음
+        const currentLocation = L.marker([centerLat, centerLon])
+            .bindPopup('<b>첨단 와이어스 파크</b>')
+            .addTo(map);
+
+        restaurants.forEach((restaurant, index) => {
+            const marker = L.circleMarker([restaurant.lat, restaurant.lon], {
+                radius: 8,
+                fillColor: "#ff0000",
+                color: "#000",
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).bindPopup(`<b>${restaurant.name}</b><br>${restaurant.menu}`)
+              .addTo(map);
+
+            const div = document.createElement('div');
+            div.className = 'restaurant';
+            div.innerHTML = `<b>${restaurant.name}</b><br>${restaurant.menu}`;
+
+            div.addEventListener('click', () => {
+                map.setView([restaurant.lat, restaurant.lon], 16);
+                marker.openPopup();
+            });
+
+            sidebar.appendChild(div);
+        });
+    </script>
+</body>
+</html>
