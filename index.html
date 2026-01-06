@@ -20,15 +20,28 @@
     }
     .restaurant b{ display:block; }
 
+    /* 사이드바 힌트 */
+    .hint{
+      margin:10px 0 14px;
+      font-size:12px;
+      color:#555;
+      padding:10px;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      line-height:1.45;
+    }
+    .hint b{ color:#1976d2; }
+
     /* 홈(원위치) 버튼 */
     #homeBtn {
       position: absolute;
       left: 50%;
-      bottom: 18px;            /* 빨간 영역 쪽(하단 중앙) */
+      bottom: 18px;
       transform: translateX(-50%);
-      z-index: 1000;           /* 지도 위로 */
+      z-index: 1000;
       display: none;
-    
+
       background: #fff;
       border: 1px solid rgba(0,0,0,.2);
       border-radius: 999px;
@@ -37,10 +50,7 @@
       cursor: pointer;
       box-shadow: 0 4px 14px rgba(0,0,0,.18);
     }
-    
-    #homeBtn:hover {
-      background: #f3f4f6;
-    }
+    #homeBtn:hover { background: #f3f4f6; }
 
     /* ---- Leaflet control: gear ---- */
     .gear-btn{
@@ -216,12 +226,14 @@
 <body>
   <div id="sidebar">
     <h3>맛집 리스트</h3>
+    <div class="hint" id="hint">
+      불러오는 중...
+    </div>
   </div>
 
   <div id="map">
     <button id="homeBtn" type="button">⟲ 원위치</button>
   </div>
-
 
   <!-- Modal -->
   <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
@@ -232,7 +244,6 @@
       </div>
 
       <div class="modal-body">
-        <!-- Mode tabs -->
         <div class="tabs">
           <div class="tab active" id="tabPick">📍 지도에서 찍기</div>
           <div class="tab" id="tabAddr">🏠 주소 입력</div>
@@ -271,7 +282,7 @@
 
           <div class="status" id="statusBox">
             <span class="warn">좌표가 필요해요.</span>
-            <br/>지도에서 찍기: 모달 열고 <b>지도 클릭</b>하면 자동 입력됩니다.
+            <br/>지도에서 찍기: 아래 버튼 누르고 <b>지도 클릭</b>하면 자동 입력됩니다.
           </div>
 
           <div class="actions">
@@ -303,6 +314,25 @@
     const hint = document.getElementById("hint");
 
     L.marker([centerLat, centerLon]).bindPopup("<b>첨단 와이어스 파크</b>").addTo(map);
+
+    // ✅ 원위치(홈) 기준값 저장
+    const homeCenter = L.latLng(centerLat, centerLon);
+    const homeZoom = map.getZoom();
+    const homeBtn = document.getElementById("homeBtn");
+
+    homeBtn.addEventListener("click", () => {
+      map.setView(homeCenter, homeZoom, { animate: true });
+    });
+
+    function updateHomeBtnVisibility() {
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+      const dist = currentCenter.distanceTo(homeCenter);
+      const movedAway = dist > 40 || currentZoom !== homeZoom;
+      homeBtn.style.display = movedAway ? "block" : "none";
+    }
+    map.on("moveend zoomend", updateHomeBtnVisibility);
+    updateHomeBtnVisibility();
 
     // -------------------------------
     // Gear control
@@ -342,6 +372,32 @@
     map.addControl(new GearControl());
 
     // -------------------------------
+    // Notion API via Vercel (Option A)
+    // -------------------------------
+    async function fetchRestaurantsFromNotion() {
+      const res = await fetch("/api/restaurants", { method: "GET" });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || "Failed to load restaurants");
+      }
+      const data = await res.json();
+      return data.items || [];
+    }
+
+    async function addRestaurantToNotion(obj) {
+      const res = await fetch("/api/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(obj),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || "Failed to add restaurant");
+      }
+      return await res.json();
+    }
+
+    // -------------------------------
     // Modal elements
     // -------------------------------
     const modalBackdrop = document.getElementById("modalBackdrop");
@@ -362,34 +418,6 @@
     const pickModeBtn = document.getElementById("pickModeBtn");
     const addBtn = document.getElementById("addBtn");
     const statusBox = document.getElementById("statusBox");
-    // ✅ 원위치(홈) 기준값 저장
-    const homeCenter = L.latLng(centerLat, centerLon);
-    const homeZoom = map.getZoom(); // 초기 setView 줌을 그대로 홈 줌으로 사용
-    
-    const homeBtn = document.getElementById("homeBtn");
-
-    // 원위치 버튼 클릭 시 홈으로 이동
-    homeBtn.addEventListener("click", () => {
-      map.setView(homeCenter, homeZoom, { animate: true });
-    });
-
-    // 현재 지도가 원위치에서 벗어났는지 판단해서 버튼 표시/숨김
-    function updateHomeBtnVisibility() {
-      const currentCenter = map.getCenter();
-      const currentZoom = map.getZoom();
-    
-      // 중심점 차이(미터). 너무 민감하면 30~80m로 조절
-      const dist = currentCenter.distanceTo(homeCenter);
-    
-      const movedAway = dist > 40 || currentZoom !== homeZoom; // 기준값
-      homeBtn.style.display = movedAway ? "block" : "none";
-    }
-
-// 이동/줌이 끝날 때마다 체크
-map.on("moveend zoomend", updateHomeBtnVisibility);
-
-// 최초 1회 체크
-updateHomeBtnVisibility();
 
     // mode: 'pick' | 'address'
     let mode = "pick";
@@ -440,7 +468,7 @@ updateHomeBtnVisibility();
 
         addressBlock.style.display = "block";
         pickModeBtn.style.display = "none";
-        disarmPick(); // 주소 모드로 바꾸면 찍기 해제
+        disarmPick();
       }
       setStatus();
     }
@@ -481,12 +509,52 @@ updateHomeBtnVisibility();
       sidebar.appendChild(div);
     }
 
-    function addRestaurantObject(obj) {
-      restaurants.push(obj);
-      renderRestaurant(obj);
-      map.setView([obj.lat, obj.lon], 16);
-      closeModal();
-      hint.innerHTML = `✅ <b>${escapeHtml(obj.name)}</b> 추가됨! (⚙️에서 계속 추가 가능)`;
+    function clearRenderedListOnly() {
+      // sidebar의 "맛집 리스트" + hint는 유지하고, 나머지(리스트 항목)만 제거
+      const nodes = Array.from(sidebar.querySelectorAll(".restaurant"));
+      nodes.forEach(n => n.remove());
+    }
+
+    async function initRestaurants() {
+      hint.innerHTML = "📡 노션에서 불러오는 중...";
+      try {
+        const items = await fetchRestaurantsFromNotion();
+        restaurants.length = 0;
+        clearRenderedListOnly();
+        items.forEach((r) => {
+          restaurants.push(r);
+          renderRestaurant(r);
+        });
+        hint.innerHTML = `✅ 불러오기 완료: <b>${items.length}</b>개`;
+      } catch (e) {
+        console.error(e);
+        hint.innerHTML = `⚠️ 노션에서 목록을 불러오지 못했어요.<br/><small>${escapeHtml(String(e.message || e))}</small>`;
+      }
+    }
+
+    async function addRestaurantObject(obj) {
+      // 버튼 중복 클릭 방지
+      addBtn.disabled = true;
+      addBtn.textContent = "저장 중...";
+
+      try {
+        // 1) 노션 저장
+        await addRestaurantToNotion(obj);
+
+        // 2) UI 즉시 반영(간단)
+        restaurants.push(obj);
+        renderRestaurant(obj);
+        map.setView([obj.lat, obj.lon], 16);
+
+        closeModal();
+        hint.innerHTML = `✅ <b>${escapeHtml(obj.name)}</b> 추가됨! (공유 링크에서도 동일하게 보여요)`;
+      } catch (e) {
+        console.error(e);
+        alert("노션 저장 실패!\n" + (e.message || e));
+      } finally {
+        addBtn.disabled = false;
+        addBtn.textContent = "추가";
+      }
     }
 
     function parseLatLon() {
@@ -512,7 +580,8 @@ updateHomeBtnVisibility();
         return;
       }
 
-      addRestaurantObject({ name, menu, address, lat, lon });
+      // category는 지금 폼에 없으니 빈 값으로 (노션 코드가 빈 값이면 무시)
+      addRestaurantObject({ name, menu, address, lat, lon, category: "" });
     });
 
     // -------------------------------
@@ -541,13 +610,12 @@ updateHomeBtnVisibility();
     }
 
     pickModeBtn.addEventListener("click", () => {
-      // pick 탭에서만 의미 있음
       if (mode !== "pick") return;
       armPick();
     });
 
     map.on("click", (e) => {
-      if (!modalBackdrop.classList.contains("open")) return; // 모달 열렸을 때만
+      if (!modalBackdrop.classList.contains("open")) return;
       if (mode !== "pick") return;
       if (!isPickArmed) return;
 
@@ -627,11 +695,9 @@ updateHomeBtnVisibility();
       disarmPick();
     }
 
-    // status display
     function setStatus(state) {
       const { ok } = parseLatLon();
       const isOpen = modalBackdrop.classList.contains("open");
-
       if (!isOpen) return;
 
       if (state === "geocoding") {
@@ -647,11 +713,10 @@ updateHomeBtnVisibility();
         return;
       }
       if (state === "coords_ok" || ok) {
-        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>이제 <b>추가</b>를 누르면 등록됩니다.`;
+        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>이제 <b>추가</b>를 누르면 노션 DB에 저장됩니다.`;
         return;
       }
 
-      // default
       if (mode === "pick") {
         statusBox.innerHTML = `<span class="warn">좌표가 필요해요.</span><br/>아래 <b>지도 클릭으로 좌표 찍기</b>를 누른 뒤 지도에서 위치를 클릭하세요.`;
       } else {
@@ -659,7 +724,6 @@ updateHomeBtnVisibility();
       }
     }
 
-    // inputs change -> status update
     [latInput, lonInput].forEach((el) => el.addEventListener("input", () => setStatus()));
 
     // -------------------------------
@@ -673,6 +737,11 @@ updateHomeBtnVisibility();
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
     }
+
+    // -------------------------------
+    // Start: load from Notion
+    // -------------------------------
+    initRestaurants();
   </script>
 </body>
 </html>
