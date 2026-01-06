@@ -20,6 +20,28 @@
     }
     .restaurant b{ display:block; }
 
+    /* 홈(원위치) 버튼 */
+    #homeBtn {
+      position: absolute;
+      left: 50%;
+      bottom: 18px;            /* 빨간 영역 쪽(하단 중앙) */
+      transform: translateX(-50%);
+      z-index: 1000;           /* 지도 위로 */
+      display: none;
+    
+      background: #fff;
+      border: 1px solid rgba(0,0,0,.2);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    }
+    
+    #homeBtn:hover {
+      background: #f3f4f6;
+    }
+
     /* ---- Leaflet control: gear ---- */
     .gear-btn{
       width:34px; height:34px;
@@ -196,7 +218,10 @@
     <h3>맛집 리스트</h3>
   </div>
 
-  <div id="map"></div>
+  <div id="map">
+    <button id="homeBtn" type="button">⟲ 원위치</button>
+  </div>
+
 
   <!-- Modal -->
   <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
@@ -337,6 +362,34 @@
     const pickModeBtn = document.getElementById("pickModeBtn");
     const addBtn = document.getElementById("addBtn");
     const statusBox = document.getElementById("statusBox");
+    // ✅ 원위치(홈) 기준값 저장
+    const homeCenter = L.latLng(centerLat, centerLon);
+    const homeZoom = map.getZoom(); // 초기 setView 줌을 그대로 홈 줌으로 사용
+    
+    const homeBtn = document.getElementById("homeBtn");
+
+    // 원위치 버튼 클릭 시 홈으로 이동
+    homeBtn.addEventListener("click", () => {
+      map.setView(homeCenter, homeZoom, { animate: true });
+    });
+
+    // 현재 지도가 원위치에서 벗어났는지 판단해서 버튼 표시/숨김
+    function updateHomeBtnVisibility() {
+      const currentCenter = map.getCenter();
+      const currentZoom = map.getZoom();
+    
+      // 중심점 차이(미터). 너무 민감하면 30~80m로 조절
+      const dist = currentCenter.distanceTo(homeCenter);
+    
+      const movedAway = dist > 40 || currentZoom !== homeZoom; // 기준값
+      homeBtn.style.display = movedAway ? "block" : "none";
+    }
+
+// 이동/줌이 끝날 때마다 체크
+map.on("moveend zoomend", updateHomeBtnVisibility);
+
+// 최초 1회 체크
+updateHomeBtnVisibility();
 
     // mode: 'pick' | 'address'
     let mode = "pick";
