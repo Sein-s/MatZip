@@ -94,6 +94,8 @@
       padding:16px;
     }
     .modal-backdrop.open{ display:flex; }
+    .modal-backdrop.pick-through{ pointer-events:none; }
+    .modal-backdrop.pick-through .modal{ pointer-events:auto; }
     .modal{
       width:min(520px, 100%);
       background:#fff;
@@ -350,6 +352,7 @@
 
     const centerLat = 35.2224405;
     const centerLon = 126.8517018;
+    const COORD_DECIMALS = 8;
 
     // -------------------------------
     // Map init
@@ -530,6 +533,7 @@
 
     function closeModal() {
       modalBackdrop.classList.remove("open");
+      modalBackdrop.classList.remove("pick-through");
       modalBackdrop.setAttribute("aria-hidden", "true");
       disarmPick();
 
@@ -647,6 +651,87 @@
       return { lat, lon, ok: Number.isFinite(lat) && Number.isFinite(lon) };
     }
 
+    function formatCoord(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "";
+      return n.toFixed(COORD_DECIMALS).replace(/\.?0+$/, "");
+    }
+
+    function setCoordInputs(lat, lon) {
+      latInput.value = formatCoord(lat);
+      lonInput.value = formatCoord(lon);
+    }
+
+    function toCandidate(item) {
+      const lat = Number(item?.lat);
+      const lon = Number(item?.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      return {
+        lat,
+        lon,
+        displayName: String(item?.display_name || "").trim(),
+      };
+    }
+
+    function pickClosestCandidate(items) {
+      const center = map.getCenter();
+      let best = null;
+
+      items.forEach((item) => {
+        const candidate = toCandidate(item);
+        if (!candidate) return;
+
+        const distance = center.distanceTo(L.latLng(candidate.lat, candidate.lon));
+        if (!best || distance < best.distance) {
+          best = { ...candidate, distance };
+        }
+      });
+
+      return best;
+    }
+
+    function mapViewbox() {
+      const b = map.getBounds();
+      return `${b.getWest()},${b.getNorth()},${b.getEast()},${b.getSouth()}`;
+    }
+
+    function buildGeocodeUrl(address, opts = {}) {
+      const params = new URLSearchParams({
+        format: "jsonv2",
+        limit: String(opts.limit ?? 5),
+        q: address,
+        "accept-language": "ko",
+      });
+
+      if (opts.countrycodes) params.set("countrycodes", opts.countrycodes);
+      if (opts.viewbox) params.set("viewbox", opts.viewbox);
+      if (opts.bounded) params.set("bounded", "1");
+
+      return `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+    }
+
+    async function geocodeAddress(address) {
+      const attempts = [
+        { limit: 5, countrycodes: "kr", viewbox: mapViewbox(), bounded: true },
+        { limit: 5, countrycodes: "kr" },
+        { limit: 5 },
+      ];
+
+      for (const opts of attempts) {
+        const url = buildGeocodeUrl(address, opts);
+        const res = await fetch(url, { headers: { "Accept": "application/json" } });
+        if (!res.ok) continue;
+
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const picked = pickClosestCandidate(data);
+          if (picked) return picked;
+        }
+      }
+
+      return null;
+    }
+
     addBtn.addEventListener("click", async () => {
       const name = String(nameInput.value || "").trim();
       const menu = String(menuInput.value || "").trim();
@@ -696,6 +781,7 @@
     // -------------------------------
     function armPick() {
       isPickArmed = true;
+      modalBackdrop.classList.add("pick-through");
       document.getElementById("map").style.cursor = "crosshair";
       pickModeBtn.textContent = "지도를 클릭해 좌표를 찍어주세요...";
       pickModeBtn.disabled = true;
@@ -705,6 +791,7 @@
 
     function disarmPick() {
       isPickArmed = false;
+      modalBackdrop.classList.remove("pick-through");
       document.getElementById("map").style.cursor = "";
       pickModeBtn.textContent = "지도 클릭으로 좌표 찍기";
       pickModeBtn.disabled = false;
@@ -726,14 +813,12 @@
       if (mode !== "pick") return;
       if (!isPickArmed) return;
 
-      const lat = Number(e.latlng.lat.toFixed(6));
-      const lon = Number(e.latlng.lng.toFixed(6));
-
-      latInput.value = String(lat);
-      lonInput.value = String(lon);
+      const lat = e.latlng.lat;
+      const lon = e.latlng.lng;
+      setCoordInputs(lat, lon);
 
       if (pendingPin) map.removeLayer(pendingPin);
-      pendingPin = L.marker([lat, lon]).addTo(map).bindPopup(`선택 좌표<br>${lat}, ${lon}`).openPopup();
+      pendingPin = L.marker([lat, lon]).addTo(map).bindPopup(`선택 좌표<br>${formatCoord(lat)}, ${formatCoord(lon)}`).openPopup();
       map.setView([lat, lon], 16);
 
       disarmPick();
@@ -753,29 +838,19 @@
 
       setStatus("geocoding");
 
-      const url =
-        "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" +
-        encodeURIComponent(address);
-
       try {
-        const res = await fetch(url, { headers: { "Accept": "application/json" } });
-        if (!res.ok) throw new Error("지오코딩 요청 실패");
-
-        const data = await res.json();
-        if (!data || data.length === 0) {
+        const picked = await geocodeAddress(address);
+        if (!picked) {
           setStatus("geocode_fail");
           alert("해당 주소로 좌표를 찾지 못했어요. 주소를 더 정확히 적어주세요.");
           return;
         }
 
-        const lat = Number(Number(data[0].lat).toFixed(6));
-        const lon = Number(Number(data[0].lon).toFixed(6));
-
-        latInput.value = String(lat);
-        lonInput.value = String(lon);
+        const { lat, lon } = picked;
+        setCoordInputs(lat, lon);
 
         if (pendingPin) map.removeLayer(pendingPin);
-        pendingPin = L.marker([lat, lon]).addTo(map).bindPopup(`검색 위치<br>${lat}, ${lon}`).openPopup();
+        pendingPin = L.marker([lat, lon]).addTo(map).bindPopup(`검색 위치<br>${formatCoord(lat)}, ${formatCoord(lon)}`).openPopup();
         map.setView([lat, lon], 16);
 
         setStatus("coords_ok");
@@ -952,8 +1027,7 @@
       nameInput.value = r.name || "";
       menuInput.value = r.menu || "";
       addrInput.value = r.address || "";
-      latInput.value = r.lat ?? "";
-      lonInput.value = r.lon ?? "";
+      setCoordInputs(r.lat, r.lon);
 
       modalTitle.textContent = "맛집 수정";
       addBtn.textContent = "수정 저장";

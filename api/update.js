@@ -16,11 +16,16 @@ export default async function handler(req, res) {
     const category = String(body?.category ?? "").trim();
     const lat = Number(body?.lat);
     const lon = Number(body?.lon);
+    const hasValidCoords =
+      Number.isFinite(lat) &&
+      Number.isFinite(lon) &&
+      Math.abs(lat) <= 90 &&
+      Math.abs(lon) <= 180;
 
     if (!id) return res.status(400).json({ error: "id is required" });
     if (!name) return res.status(400).json({ error: "name is required" });
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      return res.status(400).json({ error: "lat/lon must be numbers" });
+    if (!hasValidCoords) {
+      return res.status(400).json({ error: "lat/lon must be valid WGS84 coordinates" });
     }
 
     const notionRes = await fetch(`https://api.notion.com/v1/pages/${id}`, {
