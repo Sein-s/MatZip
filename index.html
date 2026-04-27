@@ -295,8 +295,9 @@
             <input id="addrInput" placeholder="예: 광주 북구 첨단과기로 208번길 ..." />
             <div class="actions">
               <button class="btn" id="findCoordsBtn" type="button">주소로 좌표찾기</button>
+              <button class="btn success" id="adjustCoordsBtn" type="button">마지막 위치 직접 찍기</button>
             </div>
-            <div class="helper">주소 입력 방식은 <b>좌표찾기</b>를 눌러 위도/경도를 자동 채워요.</div>
+            <div class="helper">주소 검색 후 <b>마지막 위치 직접 찍기</b> 또는 핀 드래그로 최종 좌표를 보정하세요.</div>
           </div>
 
           <div class="row">
@@ -505,6 +506,7 @@
 
     const addressBlock = document.getElementById("addressBlock");
     const findCoordsBtn = document.getElementById("findCoordsBtn");
+    const adjustCoordsBtn = document.getElementById("adjustCoordsBtn");
     const pickModeBtn = document.getElementById("pickModeBtn");
     const addBtn = document.getElementById("addBtn");
     const statusBox = document.getElementById("statusBox");
@@ -536,6 +538,7 @@
       modalBackdrop.classList.remove("pick-through");
       modalBackdrop.setAttribute("aria-hidden", "true");
       disarmPick();
+      clearPendingPin();
 
       editingId = null;
       modalTitle.textContent = "맛집 추가";
@@ -662,6 +665,27 @@
       lonInput.value = formatCoord(lon);
     }
 
+    function clearPendingPin() {
+      if (!pendingPin) return;
+      map.removeLayer(pendingPin);
+      pendingPin = null;
+    }
+
+    function renderPendingPin(lat, lon, label) {
+      clearPendingPin();
+      pendingPin = L.marker([lat, lon], { draggable: true }).addTo(map);
+      pendingPin
+        .bindPopup(`${label}<br>${formatCoord(lat)}, ${formatCoord(lon)}`)
+        .openPopup();
+
+      pendingPin.on("dragend", () => {
+        const p = pendingPin.getLatLng();
+        setCoordInputs(p.lat, p.lng);
+        pendingPin.setPopupContent(`수동 보정 좌표<br>${formatCoord(p.lat)}, ${formatCoord(p.lng)}`);
+        setStatus("coords_ok");
+      });
+    }
+
     function toCandidate(item) {
       const lat = Number(item?.lat);
       const lon = Number(item?.lon);
@@ -669,7 +693,7 @@
       return {
         lat,
         lon,
-        displayName: String(item?.display_name || "").trim(),
+        displayName: String(item?.display_name || item?.label || "").trim(),
       };
     }
 
@@ -795,30 +819,26 @@
       document.getElementById("map").style.cursor = "";
       pickModeBtn.textContent = "지도 클릭으로 좌표 찍기";
       pickModeBtn.disabled = false;
-
-      if (pendingPin) {
-        map.removeLayer(pendingPin);
-        pendingPin = null;
-      }
       setStatus();
     }
 
     pickModeBtn.addEventListener("click", () => {
-      if (mode !== "pick") return;
+      armPick();
+    });
+
+    adjustCoordsBtn.addEventListener("click", () => {
       armPick();
     });
 
     map.on("click", (e) => {
       if (!modalBackdrop.classList.contains("open")) return;
-      if (mode !== "pick") return;
       if (!isPickArmed) return;
 
       const lat = e.latlng.lat;
       const lon = e.latlng.lng;
       setCoordInputs(lat, lon);
 
-      if (pendingPin) map.removeLayer(pendingPin);
-      pendingPin = L.marker([lat, lon]).addTo(map).bindPopup(`선택 좌표<br>${formatCoord(lat)}, ${formatCoord(lon)}`).openPopup();
+      renderPendingPin(lat, lon, "선택 좌표");
       map.setView([lat, lon], 16);
 
       disarmPick();
@@ -849,8 +869,7 @@
         const { lat, lon } = picked;
         setCoordInputs(lat, lon);
 
-        if (pendingPin) map.removeLayer(pendingPin);
-        pendingPin = L.marker([lat, lon]).addTo(map).bindPopup(`검색 위치<br>${formatCoord(lat)}, ${formatCoord(lon)}`).openPopup();
+        renderPendingPin(lat, lon, "검색 위치");
         map.setView([lat, lon], 16);
 
         setStatus("coords_ok");
@@ -872,7 +891,7 @@
       }
       latInput.value = "";
       lonInput.value = "";
-      if (pendingPin) { map.removeLayer(pendingPin); pendingPin = null; }
+      clearPendingPin();
       disarmPick();
     }
 
@@ -894,7 +913,7 @@
         return;
       }
       if (state === "coords_ok" || ok) {
-        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>이제 <b>${editingId ? "수정 저장" : "추가"}</b>를 누르면 노션 DB에 저장됩니다.`;
+        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>핀 드래그 또는 <b>마지막 위치 직접 찍기</b>로 보정 후 <b>${editingId ? "수정 저장" : "추가"}</b>하세요.`;
         return;
       }
 
@@ -1028,6 +1047,9 @@
       menuInput.value = r.menu || "";
       addrInput.value = r.address || "";
       setCoordInputs(r.lat, r.lon);
+      if (Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon))) {
+        renderPendingPin(Number(r.lat), Number(r.lon), "현재 저장 위치");
+      }
 
       modalTitle.textContent = "맛집 수정";
       addBtn.textContent = "수정 저장";
