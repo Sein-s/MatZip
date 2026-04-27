@@ -95,7 +95,10 @@
     }
     .modal-backdrop.open{ display:flex; }
     .modal-backdrop.pick-through{ pointer-events:none; }
-    .modal-backdrop.pick-through .modal{ pointer-events:auto; }
+    .modal-backdrop.pick-through .modal{
+      pointer-events:none;
+      opacity:.35;
+    }
     .modal{
       width:min(520px, 100%);
       background:#fff;
@@ -295,9 +298,8 @@
             <input id="addrInput" placeholder="예: 광주 북구 첨단과기로 208번길 ..." />
             <div class="actions">
               <button class="btn" id="findCoordsBtn" type="button">주소로 좌표찾기</button>
-              <button class="btn success" id="adjustCoordsBtn" type="button">마지막 위치 직접 찍기</button>
             </div>
-            <div class="helper">주소 검색 후 <b>마지막 위치 직접 찍기</b> 또는 핀 드래그로 최종 좌표를 보정하세요.</div>
+            <div class="helper">주소 검색으로 대략 위치를 찾고, 수정 저장 후 지도에서 마지막 클릭으로 확정합니다.</div>
           </div>
 
           <div class="row">
@@ -359,6 +361,7 @@
     // Map init
     // -------------------------------
     const map = L.map("map").setView([centerLat, centerLon], 15);
+    const mapEl = document.getElementById("map");
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
     }).addTo(map);
@@ -506,7 +509,6 @@
 
     const addressBlock = document.getElementById("addressBlock");
     const findCoordsBtn = document.getElementById("findCoordsBtn");
-    const adjustCoordsBtn = document.getElementById("adjustCoordsBtn");
     const pickModeBtn = document.getElementById("pickModeBtn");
     const addBtn = document.getElementById("addBtn");
     const statusBox = document.getElementById("statusBox");
@@ -521,8 +523,48 @@
 
     // edit state
     let editingId = null;
+    let finalizeEditContext = null;
+    let isFinalizeEditArmed = false;
+    let isFinalizeEditSaving = false;
+
+    function syncMapCursor() {
+      mapEl.style.cursor = (isPickArmed || isFinalizeEditArmed) ? "crosshair" : "";
+    }
+
+    function cancelFinalizeEdit(showMessage) {
+      if (!isFinalizeEditArmed && !finalizeEditContext) return;
+      isFinalizeEditArmed = false;
+      isFinalizeEditSaving = false;
+      finalizeEditContext = null;
+      clearPendingPin();
+      syncMapCursor();
+      if (showMessage) {
+        hint.innerHTML = "ℹ️ 마지막 위치 확정이 취소되었습니다.";
+      }
+    }
+
+    function armFinalizeEdit(ctx) {
+      isFinalizeEditArmed = true;
+      isFinalizeEditSaving = false;
+      finalizeEditContext = ctx;
+
+      modalBackdrop.classList.remove("open");
+      modalBackdrop.classList.remove("pick-through");
+      modalBackdrop.setAttribute("aria-hidden", "true");
+      disarmPick();
+
+      editingId = null;
+      modalTitle.textContent = "맛집 추가";
+      addBtn.textContent = "추가";
+
+      renderPendingPin(ctx.lat, ctx.lon, "수정 예정 위치");
+      map.setView([ctx.lat, ctx.lon], 16);
+      syncMapCursor();
+      hint.innerHTML = `📍 <b>${escapeHtml(ctx.name)}</b> 최종 위치를 지도에서 클릭하면 수정이 완료됩니다.`;
+    }
 
     function openModal() {
+      cancelFinalizeEdit(false);
       modalBackdrop.classList.add("open");
       modalBackdrop.setAttribute("aria-hidden", "false");
       editingId = null;
@@ -538,6 +580,7 @@
       modalBackdrop.classList.remove("pick-through");
       modalBackdrop.setAttribute("aria-hidden", "true");
       disarmPick();
+      cancelFinalizeEdit(false);
       clearPendingPin();
 
       editingId = null;
@@ -556,6 +599,7 @@
         // 열린 모달들 닫기(우선순위: 관리 -> 추가)
         if (manageBackdrop.classList.contains("open")) closeManageModal();
         else if (modalBackdrop.classList.contains("open")) closeModal();
+        else if (isFinalizeEditArmed) cancelFinalizeEdit(true);
       }
     });
 
@@ -767,6 +811,20 @@
         nameInput.focus();
         return;
       }
+
+      if (editingId) {
+        const seedLat = ok ? lat : map.getCenter().lat;
+        const seedLon = ok ? lon : map.getCenter().lng;
+        armFinalizeEdit({
+          id: editingId,
+          name,
+          payload: { name, menu, address, category: "" },
+          lat: seedLat,
+          lon: seedLon,
+        });
+        return;
+      }
+
       if (!ok) {
         alert("위도/경도를 올바르게 입력하거나 자동으로 채워주세요.");
         latInput.focus();
@@ -777,23 +835,17 @@
 
       addBtn.disabled = true;
       const originalText = addBtn.textContent;
-      addBtn.textContent = editingId ? "수정 중..." : "저장 중...";
+      addBtn.textContent = "저장 중...";
 
       try {
-        if (editingId) {
-          await updateRestaurant(editingId, payload);
-          await initRestaurants();
-          hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 수정 완료!`;
-        } else {
-          await addRestaurantToNotion(payload);
-          await initRestaurants();
-          hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 추가 완료!`;
-        }
+        await addRestaurantToNotion(payload);
+        await initRestaurants();
+        hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 추가 완료!`;
 
         closeModal();
       } catch (e) {
         console.error(e);
-        alert((editingId ? "수정" : "추가") + " 실패!\n" + (e.message || e));
+        alert("추가 실패!\n" + (e.message || e));
       } finally {
         addBtn.disabled = false;
         addBtn.textContent = originalText;
@@ -806,9 +858,9 @@
     function armPick() {
       isPickArmed = true;
       modalBackdrop.classList.add("pick-through");
-      document.getElementById("map").style.cursor = "crosshair";
       pickModeBtn.textContent = "지도를 클릭해 좌표를 찍어주세요...";
       pickModeBtn.disabled = true;
+      syncMapCursor();
 
       setStatus("pick_armed");
     }
@@ -816,9 +868,9 @@
     function disarmPick() {
       isPickArmed = false;
       modalBackdrop.classList.remove("pick-through");
-      document.getElementById("map").style.cursor = "";
       pickModeBtn.textContent = "지도 클릭으로 좌표 찍기";
       pickModeBtn.disabled = false;
+      syncMapCursor();
       setStatus();
     }
 
@@ -826,11 +878,36 @@
       armPick();
     });
 
-    adjustCoordsBtn.addEventListener("click", () => {
-      armPick();
-    });
+    map.on("click", async (e) => {
+      if (isFinalizeEditArmed) {
+        if (isFinalizeEditSaving || !finalizeEditContext) return;
 
-    map.on("click", (e) => {
+        isFinalizeEditSaving = true;
+        mapEl.style.cursor = "progress";
+
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+        const { id, name, payload } = finalizeEditContext;
+
+        setCoordInputs(lat, lon);
+        renderPendingPin(lat, lon, "최종 저장 좌표");
+
+        try {
+          await updateRestaurant(id, { ...payload, lat, lon });
+          await initRestaurants();
+          cancelFinalizeEdit(false);
+          hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 수정 완료!`;
+        } catch (err) {
+          console.error(err);
+          hint.innerHTML = `<span style="color:#d32f2f;">⚠️ 수정 실패</span> - 지도에서 다시 클릭해 재시도하세요.`;
+          alert("수정 실패!\n" + (err.message || err));
+        } finally {
+          isFinalizeEditSaving = false;
+          syncMapCursor();
+        }
+        return;
+      }
+
       if (!modalBackdrop.classList.contains("open")) return;
       if (!isPickArmed) return;
 
@@ -913,7 +990,7 @@
         return;
       }
       if (state === "coords_ok" || ok) {
-        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>핀 드래그 또는 <b>마지막 위치 직접 찍기</b>로 보정 후 <b>${editingId ? "수정 저장" : "추가"}</b>하세요.`;
+        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>핀 드래그로 좌표를 미세 조정한 뒤 <b>${editingId ? "수정 저장" : "추가"}</b>하세요.`;
         return;
       }
 
@@ -947,6 +1024,7 @@
     const manageList = document.getElementById("manageList");
 
     async function openManageModal() {
+      cancelFinalizeEdit(false);
       manageBackdrop.classList.add("open");
       manageBackdrop.setAttribute("aria-hidden", "false");
       manageSearch.value = "";
@@ -1035,6 +1113,7 @@
     }
 
     function openModalForEdit(r) {
+      cancelFinalizeEdit(false);
       modalBackdrop.classList.add("open");
       modalBackdrop.setAttribute("aria-hidden", "false");
 
