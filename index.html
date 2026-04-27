@@ -51,6 +51,25 @@
       box-shadow: 0 4px 14px rgba(0,0,0,.18);
     }
     #homeBtn:hover { background: #f3f4f6; }
+    #finalizeBar{
+      position:absolute;
+      left:50%;
+      bottom:64px;
+      transform:translateX(-50%);
+      z-index:1200;
+      display:none;
+      gap:8px;
+      background:rgba(255,255,255,.96);
+      border:1px solid rgba(0,0,0,.14);
+      border-radius:14px;
+      box-shadow:0 8px 24px rgba(0,0,0,.18);
+      padding:8px;
+      backdrop-filter:blur(4px);
+    }
+    #finalizeBar .btn{
+      min-width:90px;
+      margin:0;
+    }
 
     /* ---- Leaflet control: gear ---- */
     .gear-btn{
@@ -266,6 +285,10 @@
 
   <div id="map">
     <button id="homeBtn" type="button">⟲ 원위치</button>
+    <div id="finalizeBar" aria-live="polite">
+      <button class="btn primary" id="finalizeSaveBtn" type="button">등록 완료</button>
+      <button class="btn" id="finalizeCancelBtn" type="button">취소</button>
+    </div>
   </div>
 
   <!-- Add/Edit Modal -->
@@ -373,6 +396,9 @@
     const homeCenter = L.latLng(centerLat, centerLon);
     const homeZoom = map.getZoom();
     const homeBtn = document.getElementById("homeBtn");
+    const finalizeBar = document.getElementById("finalizeBar");
+    const finalizeSaveBtn = document.getElementById("finalizeSaveBtn");
+    const finalizeCancelBtn = document.getElementById("finalizeCancelBtn");
 
     homeBtn.addEventListener("click", () => {
       map.setView(homeCenter, homeZoom, { animate: true });
@@ -527,6 +553,14 @@
     let isFinalizeEditArmed = false;
     let isFinalizeEditSaving = false;
 
+    function updateFinalizeBar() {
+      const show = isFinalizeEditArmed;
+      finalizeBar.style.display = show ? "flex" : "none";
+      finalizeSaveBtn.disabled = !show || isFinalizeEditSaving;
+      finalizeCancelBtn.disabled = !show || isFinalizeEditSaving;
+      finalizeSaveBtn.textContent = isFinalizeEditSaving ? "등록 중..." : "등록 완료";
+    }
+
     function syncMapCursor() {
       mapEl.style.cursor = (isPickArmed || isFinalizeEditArmed) ? "crosshair" : "";
     }
@@ -538,6 +572,7 @@
       finalizeEditContext = null;
       clearPendingPin();
       syncMapCursor();
+      updateFinalizeBar();
       if (showMessage) {
         hint.innerHTML = "ℹ️ 마지막 위치 확정이 취소되었습니다.";
       }
@@ -560,7 +595,33 @@
       renderPendingPin(ctx.lat, ctx.lon, "수정 예정 위치");
       map.setView([ctx.lat, ctx.lon], 16);
       syncMapCursor();
-      hint.innerHTML = `📍 <b>${escapeHtml(ctx.name)}</b> 최종 위치를 지도에서 클릭하면 수정이 완료됩니다.`;
+      updateFinalizeBar();
+      hint.innerHTML = `📍 <b>${escapeHtml(ctx.name)}</b> 최종 위치를 지도에서 클릭/드래그로 맞춘 뒤 <b>등록 완료</b>를 눌러 저장하세요.`;
+    }
+
+    async function completeFinalizeEdit() {
+      if (!isFinalizeEditArmed || !finalizeEditContext || isFinalizeEditSaving) return;
+
+      isFinalizeEditSaving = true;
+      mapEl.style.cursor = "progress";
+      updateFinalizeBar();
+
+      const { id, name, payload, lat, lon } = finalizeEditContext;
+
+      try {
+        await updateRestaurant(id, { ...payload, lat, lon });
+        await initRestaurants();
+        cancelFinalizeEdit(false);
+        hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 수정 완료!`;
+      } catch (err) {
+        console.error(err);
+        hint.innerHTML = `<span style="color:#d32f2f;">⚠️ 수정 실패</span> - 위치를 다시 맞춘 뒤 등록 완료를 다시 눌러주세요.`;
+        alert("수정 실패!\n" + (err.message || err));
+      } finally {
+        isFinalizeEditSaving = false;
+        syncMapCursor();
+        updateFinalizeBar();
+      }
     }
 
     function openModal() {
@@ -590,6 +651,12 @@
 
     modalCloseBtn.addEventListener("click", closeModal);
     cancelBtn.addEventListener("click", closeModal);
+    finalizeSaveBtn.addEventListener("click", () => {
+      completeFinalizeEdit();
+    });
+    finalizeCancelBtn.addEventListener("click", () => {
+      cancelFinalizeEdit(true);
+    });
 
     modalBackdrop.addEventListener("click", (e) => {
       if (e.target === modalBackdrop) closeModal();
@@ -725,6 +792,11 @@
       pendingPin.on("dragend", () => {
         const p = pendingPin.getLatLng();
         setCoordInputs(p.lat, p.lng);
+        if (isFinalizeEditArmed && finalizeEditContext) {
+          finalizeEditContext.lat = p.lat;
+          finalizeEditContext.lon = p.lng;
+          hint.innerHTML = `📍 <b>${escapeHtml(finalizeEditContext.name)}</b> 위치를 맞췄으면 <b>등록 완료</b>를 눌러 저장하세요.`;
+        }
         pendingPin.setPopupContent(`수동 보정 좌표<br>${formatCoord(p.lat)}, ${formatCoord(p.lng)}`);
         setStatus("coords_ok");
       });
@@ -882,29 +954,14 @@
       if (isFinalizeEditArmed) {
         if (isFinalizeEditSaving || !finalizeEditContext) return;
 
-        isFinalizeEditSaving = true;
-        mapEl.style.cursor = "progress";
-
         const lat = e.latlng.lat;
         const lon = e.latlng.lng;
-        const { id, name, payload } = finalizeEditContext;
+        finalizeEditContext.lat = lat;
+        finalizeEditContext.lon = lon;
 
         setCoordInputs(lat, lon);
-        renderPendingPin(lat, lon, "최종 저장 좌표");
-
-        try {
-          await updateRestaurant(id, { ...payload, lat, lon });
-          await initRestaurants();
-          cancelFinalizeEdit(false);
-          hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 수정 완료!`;
-        } catch (err) {
-          console.error(err);
-          hint.innerHTML = `<span style="color:#d32f2f;">⚠️ 수정 실패</span> - 지도에서 다시 클릭해 재시도하세요.`;
-          alert("수정 실패!\n" + (err.message || err));
-        } finally {
-          isFinalizeEditSaving = false;
-          syncMapCursor();
-        }
+        renderPendingPin(lat, lon, "최종 후보 좌표");
+        hint.innerHTML = `📍 <b>${escapeHtml(finalizeEditContext.name)}</b> 위치를 맞췄으면 <b>등록 완료</b>를 눌러 저장하세요.`;
         return;
       }
 
