@@ -1,1219 +1,1388 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>맛집 지도 - 첨단 와이어스 파크 중심</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <style>
-    body { display:flex; margin:0; }
-    #sidebar{
-      width:300px; height:100vh; overflow-y:auto;
-      background:#f8f9fa; padding:10px; box-sizing:border-box;
-      border-right:1px solid #ddd;
-    }
-    #map{ flex-grow:1; height:100vh; position:relative; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>맛집 지도 - 첨단 와이어스 파크 중심</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+      body {
+        display: flex;
+        margin: 0;
+      }
+      #sidebar {
+        width: 300px;
+        height: 100vh;
+        overflow-y: auto;
+        background: #f8f9fa;
+        padding: 10px;
+        box-sizing: border-box;
+        border-right: 1px solid #ddd;
+      }
+      #map {
+        flex-grow: 1;
+        height: 100vh;
+        position: relative;
+      }
 
-    .restaurant{
-      cursor:pointer; margin-bottom:10px; padding:8px;
-      border-bottom:1px solid #e0e0e0;
-    }
-    .restaurant b{ display:block; }
-    .restaurant-rating{
-      margin-top:4px;
-      font-size:13px;
-      color:#f59e0b;
-      letter-spacing:1px;
-    }
+      .restaurant {
+        cursor: pointer;
+        margin-bottom: 10px;
+        padding: 8px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      .restaurant b {
+        display: block;
+      }
+      .restaurant-rating {
+        margin-top: 4px;
+        font-size: 13px;
+        color: #f59e0b;
+        letter-spacing: 1px;
+      }
 
-    /* 사이드바 힌트 */
-    .hint{
-      margin:10px 0 14px;
-      font-size:12px;
-      color:#555;
-      padding:10px;
-      background:#fff;
-      border:1px solid #e5e7eb;
-      border-radius:12px;
-      line-height:1.45;
-    }
-    .hint b{ color:#1976d2; }
+      /* 사이드바 힌트 */
+      .hint {
+        margin: 10px 0 14px;
+        font-size: 12px;
+        color: #555;
+        padding: 10px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        line-height: 1.45;
+      }
+      .hint b {
+        color: #1976d2;
+      }
 
-    /* 홈(원위치) 버튼 */
-    #homeBtn {
-      position: absolute;
-      left: 50%;
-      bottom: 18px;
-      transform: translateX(-50%);
-      z-index: 1000;
-      display: none;
+      /* 홈(원위치) 버튼 */
+      #homeBtn {
+        position: absolute;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        z-index: 1000;
+        display: none;
 
-      background: #fff;
-      border: 1px solid rgba(0,0,0,.2);
-      border-radius: 999px;
-      padding: 10px 14px;
-      font-size: 13px;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0,0,0,.18);
-    }
-    #homeBtn:hover { background: #f3f4f6; }
-    #finalizeBar{
-      position:absolute;
-      left:50%;
-      bottom:64px;
-      transform:translateX(-50%);
-      z-index:1200;
-      display:none;
-      gap:8px;
-      background:rgba(255,255,255,.96);
-      border:1px solid rgba(0,0,0,.14);
-      border-radius:14px;
-      box-shadow:0 8px 24px rgba(0,0,0,.18);
-      padding:8px;
-      backdrop-filter:blur(4px);
-    }
-    #finalizeBar .btn{
-      min-width:90px;
-      margin:0;
-    }
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+        border-radius: 999px;
+        padding: 10px 14px;
+        font-size: 13px;
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+      }
+      #homeBtn:hover {
+        background: #f3f4f6;
+      }
+      #finalizeBar {
+        position: absolute;
+        left: 50%;
+        bottom: 64px;
+        transform: translateX(-50%);
+        z-index: 1200;
+        display: none;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(0, 0, 0, 0.14);
+        border-radius: 14px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+        padding: 8px;
+        backdrop-filter: blur(4px);
+      }
+      #finalizeBar .btn {
+        min-width: 90px;
+        margin: 0;
+      }
 
-    /* ---- Leaflet control: gear ---- */
-    .gear-btn{
-      width:34px; height:34px;
-      border-radius:10px;
-      background:#fff;
-      border:1px solid rgba(0,0,0,.15);
-      box-shadow:0 2px 10px rgba(0,0,0,.12);
-      display:flex; align-items:center; justify-content:center;
-      cursor:pointer;
-      user-select:none;
-      font-size:18px;
-      line-height:1;
-    }
-    .gear-menu{
-      margin-top:8px;
-      background:#fff;
-      border:1px solid rgba(0,0,0,.15);
-      box-shadow:0 2px 12px rgba(0,0,0,.14);
-      border-radius:12px;
-      overflow:hidden;
-      min-width:160px;
-      display:none;
-    }
-    .gear-menu.open{ display:block; }
-    .gear-item{
-      padding:10px 12px;
-      font-size:13px;
-      cursor:pointer;
-      white-space:nowrap;
-    }
-    .gear-item:hover{ background:#f3f4f6; }
+      /* ---- Leaflet control: gear ---- */
+      .gear-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        user-select: none;
+        font-size: 18px;
+        line-height: 1;
+      }
+      .gear-menu {
+        margin-top: 8px;
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
+        border-radius: 12px;
+        overflow: hidden;
+        min-width: 160px;
+        display: none;
+      }
+      .gear-menu.open {
+        display: block;
+      }
+      .gear-item {
+        padding: 10px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .gear-item:hover {
+        background: #f3f4f6;
+      }
 
-    /* ---- Modal ---- */
-    .modal-backdrop{
-      position:fixed; inset:0;
-      background:rgba(0,0,0,.35);
-      display:none;
-      align-items:center; justify-content:center;
-      z-index:9999;
-      padding:16px;
-    }
-    .modal-backdrop.open{ display:flex; }
-    .modal-backdrop.pick-through{ pointer-events:none; }
-    .modal-backdrop.pick-through .modal{
-      pointer-events:none;
-      opacity:.35;
-    }
-    .modal{
-      width:min(520px, 100%);
-      background:#fff;
-      border-radius:16px;
-      box-shadow:0 16px 40px rgba(0,0,0,.25);
-      overflow:hidden;
-    }
-    .modal-header{
-      padding:14px 16px;
-      border-bottom:1px solid #eee;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-    }
-    .modal-title{ font-weight:700; font-size:15px; }
-    .modal-close{
-      border:none; background:transparent; cursor:pointer;
-      font-size:18px; line-height:1;
-      padding:6px 8px;
-      border-radius:10px;
-    }
-    .modal-close:hover{ background:#f3f4f6; }
+      /* ---- Modal ---- */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 16px;
+      }
+      .modal-backdrop.open {
+        display: flex;
+      }
+      .modal-backdrop.pick-through {
+        pointer-events: none;
+      }
+      .modal-backdrop.pick-through .modal {
+        pointer-events: none;
+        opacity: 0.35;
+      }
+      .modal {
+        width: min(520px, 100%);
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+      }
+      .modal-header {
+        padding: 14px 16px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .modal-title {
+        font-weight: 700;
+        font-size: 15px;
+      }
+      .modal-close {
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 1;
+        padding: 6px 8px;
+        border-radius: 10px;
+      }
+      .modal-close:hover {
+        background: #f3f4f6;
+      }
 
-    .modal-body{ padding:14px 16px; }
+      .modal-body {
+        padding: 14px 16px;
+      }
 
-    .tabs{
-      display:flex;
-      gap:8px;
-      margin-bottom:12px;
-    }
-    .tab{
-      flex:1;
-      padding:10px 10px;
-      border-radius:12px;
-      border:1px solid #e5e7eb;
-      background:#fff;
-      cursor:pointer;
-      font-size:13px;
-      text-align:center;
-      user-select:none;
-    }
-    .tab.active{
-      border-color:#1976d2;
-      box-shadow:0 0 0 3px rgba(25,118,210,.12);
-    }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .tab {
+        flex: 1;
+        padding: 10px 10px;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        text-align: center;
+        user-select: none;
+      }
+      .tab.active {
+        border-color: #1976d2;
+        box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.12);
+      }
 
-    .form{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    .row{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
-    }
-    @media (max-width: 480px){
-      .row{ grid-template-columns: 1fr; }
-    }
+      .form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      @media (max-width: 480px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+      }
 
-    label{ font-size:12px; color:#555; display:block; margin-bottom:6px; }
-    input, textarea{
-      width:100%;
-      padding:10px 10px;
-      border-radius:12px;
-      border:1px solid #e5e7eb;
-      outline:none;
-      font-size:13px;
-      box-sizing:border-box;
-      background:#fff;
-    }
-    textarea{ min-height:74px; resize:vertical; }
+      label {
+        font-size: 12px;
+        color: #555;
+        display: block;
+        margin-bottom: 6px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        padding: 10px 10px;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        outline: none;
+        font-size: 13px;
+        box-sizing: border-box;
+        background: #fff;
+      }
+      textarea {
+        min-height: 74px;
+        resize: vertical;
+      }
 
-    input:focus, textarea:focus{
-      border-color:#1976d2;
-      box-shadow:0 0 0 3px rgba(25,118,210,.12);
-    }
-    .star-rating{
-      display:flex;
-      flex-direction:row-reverse;
-      justify-content:flex-end;
-      gap:4px;
-    }
-    .star-rating input{
-      display:none;
-    }
-    .star-rating label{
-      margin:0;
-      cursor:pointer;
-      font-size:24px;
-      line-height:1;
-      color:#d1d5db;
-      transition:color .12s ease;
-    }
-    .star-rating label:hover,
-    .star-rating label:hover ~ label,
-    .star-rating input:checked ~ label{
-      color:#f59e0b;
-    }
-    .star-clear{
-      margin-top:6px;
-      font-size:12px;
-      color:#666;
-      cursor:pointer;
-      display:inline-block;
-      user-select:none;
-    }
+      input:focus,
+      textarea:focus {
+        border-color: #1976d2;
+        box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.12);
+      }
+      .star-rating {
+        display: flex;
+        flex-direction: row-reverse;
+        justify-content: flex-end;
+        gap: 4px;
+      }
+      .star-rating input {
+        display: none;
+      }
+      .star-rating label {
+        margin: 0;
+        cursor: pointer;
+        font-size: 24px;
+        line-height: 1;
+        color: #d1d5db;
+        transition: color 0.12s ease;
+      }
+      .star-rating label:hover,
+      .star-rating label:hover ~ label,
+      .star-rating input:checked ~ label {
+        color: #f59e0b;
+      }
+      .star-clear {
+        margin-top: 6px;
+        font-size: 12px;
+        color: #666;
+        cursor: pointer;
+        display: inline-block;
+        user-select: none;
+      }
 
-    .helper{
-      font-size:12px;
-      color:#666;
-      line-height:1.4;
-      margin-top:-4px;
-    }
-    .helper b{ color:#2e7d32; }
+      .helper {
+        font-size: 12px;
+        color: #666;
+        line-height: 1.4;
+        margin-top: 4px;
+      }
+      .helper b {
+        color: #2e7d32;
+      }
 
-    .actions{
-      display:flex;
-      gap:10px;
-      margin-top:4px;
-    }
-    .btn{
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid #e5e7eb;
-      background:#fff;
-      cursor:pointer;
-      font-size:13px;
-    }
-    .btn.primary{
-      background:#1976d2;
-      border-color:#1976d2;
-      color:#fff;
-    }
-    .btn.success{
-      background:#2e7d32;
-      border-color:#2e7d32;
-      color:#fff;
-    }
-    .btn:disabled{
-      opacity:.55;
-      cursor:not-allowed;
-    }
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 4px;
+      }
+      .btn {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      .btn.primary {
+        background: #1976d2;
+        border-color: #1976d2;
+        color: #fff;
+      }
+      .btn.success {
+        background: #2e7d32;
+        border-color: #2e7d32;
+        color: #fff;
+      }
+      .btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
 
-    .status{
-      margin-top:8px;
-      font-size:12px;
-      color:#555;
-      padding:10px;
-      background:#f9fafb;
-      border:1px dashed #d1d5db;
-      border-radius:12px;
-      line-height:1.45;
-    }
-    .status .ok{ color:#2e7d32; font-weight:700; }
-    .status .warn{ color:#d32f2f; font-weight:700; }
+      .status {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #555;
+        padding: 10px;
+        background: #f9fafb;
+        border: 1px dashed #d1d5db;
+        border-radius: 12px;
+        line-height: 1.45;
+      }
+      .status .ok {
+        color: #2e7d32;
+        font-weight: 700;
+      }
+      .status .warn {
+        color: #d32f2f;
+        font-weight: 700;
+      }
 
-    .manage-row{
-      border:1px solid #e5e7eb;
-      border-radius:12px;
-      padding:10px;
-      background:#fff;
-    }
-    .manage-top{
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      align-items:flex-start;
-    }
-    .manage-name{ font-weight:700; font-size:13px; }
-    .manage-meta{ font-size:12px; color:#666; margin-top:4px; line-height:1.35; }
-    .manage-actions{ display:flex; gap:8px; flex-shrink:0; }
-    .manage-actions .mini{
-      padding:8px 10px;
-      border-radius:10px;
-      border:1px solid #e5e7eb;
-      background:#fff;
-      cursor:pointer;
-      font-size:12px;
-    }
-    .manage-actions .mini.danger{
-      border-color:#ef4444;
-      color:#ef4444;
-    }
-    .manage-actions .mini:hover{ background:#f3f4f6; }
-  </style>
-</head>
+      .manage-row {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 10px;
+        background: #fff;
+      }
+      .manage-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .manage-name {
+        font-weight: 700;
+        font-size: 13px;
+      }
+      .manage-meta {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+        line-height: 1.35;
+      }
+      .manage-actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .manage-actions .mini {
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .manage-actions .mini.danger {
+        border-color: #ef4444;
+        color: #ef4444;
+      }
+      .manage-actions .mini:hover {
+        background: #f3f4f6;
+      }
+    </style>
+  </head>
 
-<body>
-  <div id="sidebar">
-    <h3>맛집 리스트</h3>
-    <div class="hint" id="hint">불러오는 중...</div>
-  </div>
-
-  <div id="map">
-    <button id="homeBtn" type="button">⟲ 원위치</button>
-    <div id="finalizeBar" aria-live="polite">
-      <button class="btn primary" id="finalizeSaveBtn" type="button">등록 완료</button>
-      <button class="btn" id="finalizeCancelBtn" type="button">취소</button>
+  <body>
+    <div id="sidebar">
+      <h3>맛집 리스트</h3>
+      <div class="hint" id="hint">불러오는 중...</div>
     </div>
-  </div>
 
-  <!-- Add/Edit Modal -->
-  <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="modal-header">
-        <div class="modal-title" id="modalTitle">맛집 추가</div>
-        <button class="modal-close" id="modalCloseBtn" aria-label="close">✕</button>
+    <div id="map">
+      <button id="homeBtn" type="button">⟲ 원위치</button>
+      <div id="finalizeBar" aria-live="polite">
+        <button class="btn primary" id="finalizeSaveBtn" type="button">
+          등록 완료
+        </button>
+        <button class="btn" id="finalizeCancelBtn" type="button">취소</button>
       </div>
+    </div>
 
-      <div class="modal-body">
-        <div class="tabs">
-          <div class="tab active" id="tabPick">📍 지도에서 찍기</div>
-          <div class="tab" id="tabAddr">🏠 주소 입력</div>
+    <!-- Add/Edit Modal -->
+    <div class="modal-backdrop" id="modalBackdrop" aria-hidden="true">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+      >
+        <div class="modal-header">
+          <div class="modal-title" id="modalTitle">맛집 추가</div>
+          <button class="modal-close" id="modalCloseBtn" aria-label="close">
+            ✕
+          </button>
         </div>
 
-        <div class="form">
-          <div>
-            <label for="nameInput">가게명 *</label>
-            <input id="nameInput" placeholder="예: 파더스베이글" />
+        <div class="modal-body">
+          <div class="tabs">
+            <div class="tab active" id="tabPick">📍 지도에서 찍기</div>
+            <div class="tab" id="tabAddr">🏠 주소 입력</div>
           </div>
 
-          <div>
-            <label for="menuInput">설명</label>
-            <textarea id="menuInput" placeholder="예: 추천 메뉴, 웨이팅, 가격 등"></textarea>
-          </div>
-          
-          <div>
-            <label>별점 (5점 만점)</label>
-            <div class="star-rating" role="radiogroup" aria-label="별점 선택">
-              <input type="radio" id="rating5" name="ratingInput" value="5" />
-              <label for="rating5" title="5점">★</label>
-              <input type="radio" id="rating4" name="ratingInput" value="4" />
-              <label for="rating4" title="4점">★</label>
-              <input type="radio" id="rating3" name="ratingInput" value="3" />
-              <label for="rating3" title="3점">★</label>
-              <input type="radio" id="rating2" name="ratingInput" value="2" />
-              <label for="rating2" title="2점">★</label>
-              <input type="radio" id="rating1" name="ratingInput" value="1" />
-              <label for="rating1" title="1점">★</label>
+          <div class="form">
+            <div>
+              <label for="nameInput">가게명 *</label>
+              <input id="nameInput" placeholder="예: 파더스베이글" />
             </div>
-            <span class="star-clear" id="ratingClearBtn">별점 선택 해제</span>
-          </div>
 
-          <div id="addressBlock">
-            <label for="addrInput">주소</label>
-            <input id="addrInput" placeholder="예: 광주 북구 첨단과기로 208번길 ..." />
+            <div>
+              <label for="menuInput">설명</label>
+              <textarea
+                id="menuInput"
+                placeholder="예: 추천 메뉴, 웨이팅, 가격 등"
+              ></textarea>
+            </div>
+
+            <div>
+              <label>별점 (5점 만점)</label>
+              <div class="star-rating" role="radiogroup" aria-label="별점 선택">
+                <input type="radio" id="rating5" name="ratingInput" value="5" />
+                <label for="rating5" title="5점">★</label>
+                <input type="radio" id="rating4" name="ratingInput" value="4" />
+                <label for="rating4" title="4점">★</label>
+                <input type="radio" id="rating3" name="ratingInput" value="3" />
+                <label for="rating3" title="3점">★</label>
+                <input type="radio" id="rating2" name="ratingInput" value="2" />
+                <label for="rating2" title="2점">★</label>
+                <input type="radio" id="rating1" name="ratingInput" value="1" />
+                <label for="rating1" title="1점">★</label>
+              </div>
+              <span class="star-clear" id="ratingClearBtn">별점 선택 해제</span>
+            </div>
+
+            <div id="addressBlock">
+              <label for="addrInput">주소</label>
+              <input
+                id="addrInput"
+                placeholder="예: 광주 북구 첨단과기로 208번길 ..."
+              />
+              <div class="actions">
+                <button class="btn" id="findCoordsBtn" type="button">
+                  주소로 좌표찾기
+                </button>
+              </div>
+              <div class="helper">
+                주소 검색으로 대략 위치를 찾고, 수정 저장 후 지도에서 마지막
+                클릭으로 확정합니다.
+              </div>
+            </div>
+
+            <div class="row">
+              <div>
+                <label for="latInput">위도(lat) *</label>
+                <input
+                  id="latInput"
+                  placeholder="예: 35.222440"
+                  inputmode="decimal"
+                />
+              </div>
+              <div>
+                <label for="lonInput">경도(lon) *</label>
+                <input
+                  id="lonInput"
+                  placeholder="예: 126.851701"
+                  inputmode="decimal"
+                />
+              </div>
+            </div>
+
+            <div class="status" id="statusBox">
+              <span class="warn">좌표가 필요해요.</span>
+              <br />지도에서 찍기: 아래 버튼 누르고 <b>지도 클릭</b>하면 자동
+              입력됩니다.
+            </div>
+
             <div class="actions">
-              <button class="btn" id="findCoordsBtn" type="button">주소로 좌표찾기</button>
+              <button class="btn" id="cancelBtn" type="button">취소</button>
+              <button class="btn success" id="pickModeBtn" type="button">
+                지도 클릭으로 좌표 찍기
+              </button>
+              <button class="btn primary" id="addBtn" type="button">
+                추가
+              </button>
             </div>
-            <div class="helper">주소 검색으로 대략 위치를 찾고, 수정 저장 후 지도에서 마지막 클릭으로 확정합니다.</div>
-          </div>
-
-          <div class="row">
-            <div>
-              <label for="latInput">위도(lat) *</label>
-              <input id="latInput" placeholder="예: 35.222440" inputmode="decimal" />
-            </div>
-            <div>
-              <label for="lonInput">경도(lon) *</label>
-              <input id="lonInput" placeholder="예: 126.851701" inputmode="decimal" />
-            </div>
-          </div>
-
-          <div class="status" id="statusBox">
-            <span class="warn">좌표가 필요해요.</span>
-            <br/>지도에서 찍기: 아래 버튼 누르고 <b>지도 클릭</b>하면 자동 입력됩니다.
-          </div>
-
-          <div class="actions">
-            <button class="btn" id="cancelBtn" type="button">취소</button>
-            <button class="btn success" id="pickModeBtn" type="button">지도 클릭으로 좌표 찍기</button>
-            <button class="btn primary" id="addBtn" type="button">추가</button>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Manage Modal (moved ABOVE script to avoid null refs) -->
-  <div class="modal-backdrop" id="manageBackdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manageTitle">
-      <div class="modal-header">
-        <div class="modal-title" id="manageTitle">맛집 관리 (수정/삭제)</div>
-        <button class="modal-close" id="manageCloseBtn" aria-label="close">✕</button>
-      </div>
-
-      <div class="modal-body">
-        <div style="display:flex; gap:10px; margin-bottom:12px;">
-          <input id="manageSearch" placeholder="검색: 가게명/설명/주소" />
+    <!-- Manage Modal (moved ABOVE script to avoid null refs) -->
+    <div class="modal-backdrop" id="manageBackdrop" aria-hidden="true">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="manageTitle"
+      >
+        <div class="modal-header">
+          <div class="modal-title" id="manageTitle">맛집 관리 (수정/삭제)</div>
+          <button class="modal-close" id="manageCloseBtn" aria-label="close">
+            ✕
+          </button>
         </div>
-        <div id="manageList" style="max-height:60vh; overflow:auto; display:flex; flex-direction:column; gap:8px;"></div>
-        <div class="helper">✏️ 수정은 기존 입력 폼으로 이동합니다. 🗑️ 삭제는 노션에서 숨김(archived) 처리됩니다.</div>
+
+        <div class="modal-body">
+          <div style="display: flex; gap: 10px; margin-bottom: 12px">
+            <input id="manageSearch" placeholder="검색: 가게명/설명/주소" />
+          </div>
+          <div
+            id="manageList"
+            style="
+              max-height: 60vh;
+              overflow: auto;
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+            "
+          ></div>
+          <div class="helper">
+            ✏️ 수정은 기존 입력 폼으로 이동합니다. 🗑️ 삭제는 노션에서
+            숨김(archived) 처리됩니다.
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    // -------------------------------
-    // State
-    // -------------------------------
-    const restaurants = [];
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+      // -------------------------------
+      // State
+      // -------------------------------
+      const restaurants = [];
 
-    const centerLat = 35.2224405;
-    const centerLon = 126.8517018;
-    const COORD_DECIMALS = 8;
+      const centerLat = 35.2224405;
+      const centerLon = 126.8517018;
+      const COORD_DECIMALS = 8;
 
-    // -------------------------------
-    // Map init
-    // -------------------------------
-    const map = L.map("map").setView([centerLat, centerLon], 15);
-    const mapEl = document.getElementById("map");
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-    }).addTo(map);
+      // -------------------------------
+      // Map init
+      // -------------------------------
+      const map = L.map("map").setView([centerLat, centerLon], 15);
+      const mapEl = document.getElementById("map");
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
 
-    const sidebar = document.getElementById("sidebar");
-    const hint = document.getElementById("hint");
+      const sidebar = document.getElementById("sidebar");
+      const hint = document.getElementById("hint");
 
-    // 홈 기준
-    const homeCenter = L.latLng(centerLat, centerLon);
-    const homeZoom = map.getZoom();
-    const homeBtn = document.getElementById("homeBtn");
-    const finalizeBar = document.getElementById("finalizeBar");
-    const finalizeSaveBtn = document.getElementById("finalizeSaveBtn");
-    const finalizeCancelBtn = document.getElementById("finalizeCancelBtn");
+      // 홈 기준
+      const homeCenter = L.latLng(centerLat, centerLon);
+      const homeZoom = map.getZoom();
+      const homeBtn = document.getElementById("homeBtn");
+      const finalizeBar = document.getElementById("finalizeBar");
+      const finalizeSaveBtn = document.getElementById("finalizeSaveBtn");
+      const finalizeCancelBtn = document.getElementById("finalizeCancelBtn");
 
-    homeBtn.addEventListener("click", () => {
-      map.setView(homeCenter, homeZoom, { animate: true });
-    });
+      homeBtn.addEventListener("click", () => {
+        map.setView(homeCenter, homeZoom, { animate: true });
+      });
 
-    function updateHomeBtnVisibility() {
-      const currentCenter = map.getCenter();
-      const currentZoom = map.getZoom();
-      const dist = currentCenter.distanceTo(homeCenter);
-      const movedAway = dist > 40 || currentZoom !== homeZoom;
-      homeBtn.style.display = movedAway ? "block" : "none";
-    }
-    map.on("moveend zoomend", updateHomeBtnVisibility);
-    updateHomeBtnVisibility();
+      function updateHomeBtnVisibility() {
+        const currentCenter = map.getCenter();
+        const currentZoom = map.getZoom();
+        const dist = currentCenter.distanceTo(homeCenter);
+        const movedAway = dist > 40 || currentZoom !== homeZoom;
+        homeBtn.style.display = movedAway ? "block" : "none";
+      }
+      map.on("moveend zoomend", updateHomeBtnVisibility);
+      updateHomeBtnVisibility();
 
-    // Center marker
-    L.marker([centerLat, centerLon]).bindPopup("<b>첨단 와이어스 파크</b>").addTo(map);
+      // Center marker
+      L.marker([centerLat, centerLon])
+        .bindPopup("<b>첨단 와이어스 파크</b>")
+        .addTo(map);
 
-    // ✅ 마커 누적 방지용 레이어 그룹
-    const markerLayer = L.layerGroup().addTo(map);
+      // ✅ 마커 누적 방지용 레이어 그룹
+      const markerLayer = L.layerGroup().addTo(map);
 
-    // -------------------------------
-    // Gear control
-    // -------------------------------
-    const GearControl = L.Control.extend({
-      options: { position: "topright" },
-      onAdd: function() {
-        const wrap = L.DomUtil.create("div");
-        wrap.style.position = "relative";
+      // -------------------------------
+      // Gear control
+      // -------------------------------
+      const GearControl = L.Control.extend({
+        options: { position: "topright" },
+        onAdd: function () {
+          const wrap = L.DomUtil.create("div");
+          wrap.style.position = "relative";
 
-        const btn = L.DomUtil.create("div", "gear-btn", wrap);
-        btn.title = "메뉴";
-        btn.innerHTML = "⚙️";
+          const btn = L.DomUtil.create("div", "gear-btn", wrap);
+          btn.title = "메뉴";
+          btn.innerHTML = "⚙️";
 
-        const menu = L.DomUtil.create("div", "gear-menu", wrap);
-        menu.innerHTML = `
+          const menu = L.DomUtil.create("div", "gear-menu", wrap);
+          menu.innerHTML = `
           <div class="gear-item" id="menuAdd">🍽️ 맛집 추가</div>
           <div class="gear-item" id="menuManage">🛠️ 맛집 관리(수정/삭제)</div>
         `;
 
-        L.DomEvent.disableClickPropagation(wrap);
-        L.DomEvent.disableScrollPropagation(wrap);
+          L.DomEvent.disableClickPropagation(wrap);
+          L.DomEvent.disableScrollPropagation(wrap);
 
-        btn.addEventListener("click", () => {
-          menu.classList.toggle("open");
-        });
+          btn.addEventListener("click", () => {
+            menu.classList.toggle("open");
+          });
 
-        document.addEventListener("click", (e) => {
-          if (!wrap.contains(e.target)) menu.classList.remove("open");
-        });
+          document.addEventListener("click", (e) => {
+            if (!wrap.contains(e.target)) menu.classList.remove("open");
+          });
 
-        menu.querySelector("#menuAdd").addEventListener("click", () => {
-          menu.classList.remove("open");
-          openModal();
-        });
+          menu.querySelector("#menuAdd").addEventListener("click", () => {
+            menu.classList.remove("open");
+            openModal();
+          });
 
-        menu.querySelector("#menuManage").addEventListener("click", async () => {
-          menu.classList.remove("open");
-          await openManageModal();
-        });
+          menu
+            .querySelector("#menuManage")
+            .addEventListener("click", async () => {
+              menu.classList.remove("open");
+              await openManageModal();
+            });
 
-        return wrap;
-      }
-    });
-    map.addControl(new GearControl());
-
-    // -------------------------------
-    // Notion API via Vercel (Option A)
-    // -------------------------------
-    async function fetchRestaurantsFromNotion() {
-      const res = await fetch("/api/restaurants", { method: "GET" });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || "Failed to load restaurants");
-      }
-      const data = await res.json();
-      return data.items || [];
-    }
-
-    async function addRestaurantToNotion(obj) {
-      const res = await fetch("/api/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(obj),
+          return wrap;
+        },
       });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || "Failed to add restaurant");
+      map.addControl(new GearControl());
+
+      // -------------------------------
+      // Notion API via Vercel (Option A)
+      // -------------------------------
+      async function fetchRestaurantsFromNotion() {
+        const res = await fetch("/api/restaurants", { method: "GET" });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(text || "Failed to load restaurants");
+        }
+        const data = await res.json();
+        return data.items || [];
       }
-      return await res.json();
-    }
 
-    async function updateRestaurant(id, obj) {
-      const res = await fetch("/api/update", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, ...obj }),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || "update failed");
+      async function addRestaurantToNotion(obj) {
+        const res = await fetch("/api/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(obj),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(text || "Failed to add restaurant");
+        }
+        return await res.json();
       }
-      return await res.json();
-    }
 
-    async function deleteRestaurant(id) {
-      const res = await fetch("/api/delete", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(text || "delete failed");
+      async function updateRestaurant(id, obj) {
+        const res = await fetch("/api/update", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, ...obj }),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(text || "update failed");
+        }
+        return await res.json();
       }
-      return await res.json();
-    }
 
-    // -------------------------------
-    // Modal elements (Add/Edit)
-    // -------------------------------
-    const modalBackdrop = document.getElementById("modalBackdrop");
-    const modalCloseBtn = document.getElementById("modalCloseBtn");
-    const cancelBtn = document.getElementById("cancelBtn");
-
-    const tabPick = document.getElementById("tabPick");
-    const tabAddr = document.getElementById("tabAddr");
-
-    const nameInput = document.getElementById("nameInput");
-    const menuInput = document.getElementById("menuInput");
-    const ratingInputs = Array.from(document.querySelectorAll("input[name='ratingInput']"));
-    const ratingClearBtn = document.getElementById("ratingClearBtn");
-    const addrInput = document.getElementById("addrInput");
-    const latInput = document.getElementById("latInput");
-    const lonInput = document.getElementById("lonInput");
-
-    const addressBlock = document.getElementById("addressBlock");
-    const findCoordsBtn = document.getElementById("findCoordsBtn");
-    const pickModeBtn = document.getElementById("pickModeBtn");
-    const addBtn = document.getElementById("addBtn");
-    const statusBox = document.getElementById("statusBox");
-    const modalTitle = document.getElementById("modalTitle");
-
-    // mode: 'pick' | 'address'
-    let mode = "pick";
-
-    // pick mode state
-    let isPickArmed = false;
-    let pendingPin = null;
-
-    // edit state
-    let editingId = null;
-    let finalizeEditContext = null;
-    let isFinalizeEditArmed = false;
-    let isFinalizeEditSaving = false;
-
-    function updateFinalizeBar() {
-      const show = isFinalizeEditArmed;
-      finalizeBar.style.display = show ? "flex" : "none";
-      finalizeSaveBtn.disabled = !show || isFinalizeEditSaving;
-      finalizeCancelBtn.disabled = !show || isFinalizeEditSaving;
-      finalizeSaveBtn.textContent = isFinalizeEditSaving ? "등록 중..." : "등록 완료";
-    }
-
-    function syncMapCursor() {
-      mapEl.style.cursor = (isPickArmed || isFinalizeEditArmed) ? "crosshair" : "";
-    }
-
-    function cancelFinalizeEdit(showMessage) {
-      if (!isFinalizeEditArmed && !finalizeEditContext) return;
-      isFinalizeEditArmed = false;
-      isFinalizeEditSaving = false;
-      finalizeEditContext = null;
-      clearPendingPin();
-      syncMapCursor();
-      updateFinalizeBar();
-      if (showMessage) {
-        hint.innerHTML = "ℹ️ 마지막 위치 확정이 취소되었습니다.";
+      async function deleteRestaurant(id) {
+        const res = await fetch("/api/delete", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(text || "delete failed");
+        }
+        return await res.json();
       }
-    }
 
-    function armFinalizeEdit(ctx) {
-      isFinalizeEditArmed = true;
-      isFinalizeEditSaving = false;
-      finalizeEditContext = ctx;
+      // -------------------------------
+      // Modal elements (Add/Edit)
+      // -------------------------------
+      const modalBackdrop = document.getElementById("modalBackdrop");
+      const modalCloseBtn = document.getElementById("modalCloseBtn");
+      const cancelBtn = document.getElementById("cancelBtn");
 
-      modalBackdrop.classList.remove("open");
-      modalBackdrop.classList.remove("pick-through");
-      modalBackdrop.setAttribute("aria-hidden", "true");
-      disarmPick();
+      const tabPick = document.getElementById("tabPick");
+      const tabAddr = document.getElementById("tabAddr");
 
-      editingId = null;
-      modalTitle.textContent = "맛집 추가";
-      addBtn.textContent = "추가";
+      const nameInput = document.getElementById("nameInput");
+      const menuInput = document.getElementById("menuInput");
+      const ratingInputs = Array.from(
+        document.querySelectorAll("input[name='ratingInput']"),
+      );
+      const ratingClearBtn = document.getElementById("ratingClearBtn");
+      const addrInput = document.getElementById("addrInput");
+      const latInput = document.getElementById("latInput");
+      const lonInput = document.getElementById("lonInput");
 
-      renderPendingPin(ctx.lat, ctx.lon, "수정 예정 위치");
-      map.setView([ctx.lat, ctx.lon], 16);
-      syncMapCursor();
-      updateFinalizeBar();
-      hint.innerHTML = `📍 <b>${escapeHtml(ctx.name)}</b> 최종 위치를 지도에서 클릭/드래그로 맞춘 뒤 <b>등록 완료</b>를 눌러 저장하세요.`;
-    }
+      const addressBlock = document.getElementById("addressBlock");
+      const findCoordsBtn = document.getElementById("findCoordsBtn");
+      const pickModeBtn = document.getElementById("pickModeBtn");
+      const addBtn = document.getElementById("addBtn");
+      const statusBox = document.getElementById("statusBox");
+      const modalTitle = document.getElementById("modalTitle");
 
-    async function completeFinalizeEdit() {
-      if (!isFinalizeEditArmed || !finalizeEditContext || isFinalizeEditSaving) return;
+      // mode: 'pick' | 'address'
+      let mode = "pick";
 
-      isFinalizeEditSaving = true;
-      mapEl.style.cursor = "progress";
-      updateFinalizeBar();
+      // pick mode state
+      let isPickArmed = false;
+      let pendingPin = null;
 
-      const { id, name, payload, lat, lon } = finalizeEditContext;
+      // edit state
+      let editingId = null;
+      let finalizeEditContext = null;
+      let isFinalizeEditArmed = false;
+      let isFinalizeEditSaving = false;
 
-      try {
-        await updateRestaurant(id, { ...payload, lat, lon });
-        await initRestaurants();
-        cancelFinalizeEdit(false);
-        hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 수정 완료!`;
-      } catch (err) {
-        console.error(err);
-        hint.innerHTML = `<span style="color:#d32f2f;">⚠️ 수정 실패</span> - 위치를 다시 맞춘 뒤 등록 완료를 다시 눌러주세요.`;
-        alert("수정 실패!\n" + (err.message || err));
-      } finally {
+      function updateFinalizeBar() {
+        const show = isFinalizeEditArmed;
+        finalizeBar.style.display = show ? "flex" : "none";
+        finalizeSaveBtn.disabled = !show || isFinalizeEditSaving;
+        finalizeCancelBtn.disabled = !show || isFinalizeEditSaving;
+        finalizeSaveBtn.textContent = isFinalizeEditSaving
+          ? "등록 중..."
+          : "등록 완료";
+      }
+
+      function syncMapCursor() {
+        mapEl.style.cursor =
+          isPickArmed || isFinalizeEditArmed ? "crosshair" : "";
+      }
+
+      function cancelFinalizeEdit(showMessage) {
+        if (!isFinalizeEditArmed && !finalizeEditContext) return;
+        isFinalizeEditArmed = false;
         isFinalizeEditSaving = false;
+        finalizeEditContext = null;
+        clearPendingPin();
         syncMapCursor();
         updateFinalizeBar();
+        if (showMessage) {
+          hint.innerHTML = "ℹ️ 마지막 위치 확정이 취소되었습니다.";
+        }
       }
-    }
 
-    function openModal() {
-      cancelFinalizeEdit(false);
-      modalBackdrop.classList.add("open");
-      modalBackdrop.setAttribute("aria-hidden", "false");
-      editingId = null;
-      modalTitle.textContent = "맛집 추가";
-      addBtn.textContent = "추가";
-      setMode("pick");
-      resetFormKeepText(false);
-      setStatus();
-    }
+      function armFinalizeEdit(ctx) {
+        isFinalizeEditArmed = true;
+        isFinalizeEditSaving = false;
+        finalizeEditContext = ctx;
 
-    function closeModal() {
-      modalBackdrop.classList.remove("open");
-      modalBackdrop.classList.remove("pick-through");
-      modalBackdrop.setAttribute("aria-hidden", "true");
-      disarmPick();
-      cancelFinalizeEdit(false);
-      clearPendingPin();
-
-      editingId = null;
-      modalTitle.textContent = "맛집 추가";
-      addBtn.textContent = "추가";
-    }
-
-    modalCloseBtn.addEventListener("click", closeModal);
-    cancelBtn.addEventListener("click", closeModal);
-    finalizeSaveBtn.addEventListener("click", () => {
-      completeFinalizeEdit();
-    });
-    finalizeCancelBtn.addEventListener("click", () => {
-      cancelFinalizeEdit(true);
-    });
-
-    modalBackdrop.addEventListener("click", (e) => {
-      if (e.target === modalBackdrop) closeModal();
-    });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        // 열린 모달들 닫기(우선순위: 관리 -> 추가)
-        if (manageBackdrop.classList.contains("open")) closeManageModal();
-        else if (modalBackdrop.classList.contains("open")) closeModal();
-        else if (isFinalizeEditArmed) cancelFinalizeEdit(true);
-      }
-    });
-
-    // -------------------------------
-    // Mode switching
-    // -------------------------------
-    function setMode(next) {
-      mode = next;
-
-      if (mode === "pick") {
-        tabPick.classList.add("active");
-        tabAddr.classList.remove("active");
-
-        addressBlock.style.display = "none";
-        pickModeBtn.style.display = "inline-block";
-      } else {
-        tabAddr.classList.add("active");
-        tabPick.classList.remove("active");
-
-        addressBlock.style.display = "block";
-        pickModeBtn.style.display = "none";
+        modalBackdrop.classList.remove("open");
+        modalBackdrop.classList.remove("pick-through");
+        modalBackdrop.setAttribute("aria-hidden", "true");
         disarmPick();
+
+        editingId = null;
+        modalTitle.textContent = "맛집 추가";
+        addBtn.textContent = "추가";
+
+        renderPendingPin(ctx.lat, ctx.lon, "수정 예정 위치");
+        map.setView([ctx.lat, ctx.lon], 16);
+        syncMapCursor();
+        updateFinalizeBar();
+        hint.innerHTML = `📍 <b>${escapeHtml(ctx.name)}</b> 최종 위치를 지도에서 클릭/드래그로 맞춘 뒤 <b>등록 완료</b>를 눌러 저장하세요.`;
       }
-      setStatus();
-    }
 
-    tabPick.addEventListener("click", () => setMode("pick"));
-    tabAddr.addEventListener("click", () => setMode("address"));
+      async function completeFinalizeEdit() {
+        if (
+          !isFinalizeEditArmed ||
+          !finalizeEditContext ||
+          isFinalizeEditSaving
+        )
+          return;
 
-    // -------------------------------
-    // Rendering
-    // -------------------------------
-    function renderRestaurant(restaurant) {
-      const lat = Number(restaurant.lat);
-      const lon = Number(restaurant.lon);
-      const rating = Number(restaurant.rating);
-      const ratingStars = renderStars(rating);
-      const ratingLabel = Number.isFinite(rating) && rating >= 1 && rating <= 5 ? `${rating}/5` : "";
+        isFinalizeEditSaving = true;
+        mapEl.style.cursor = "progress";
+        updateFinalizeBar();
 
-      const marker = L.circleMarker([lat, lon], {
-        radius: 8,
-        fillColor: "#ff0000",
-        color: "#000",
-        weight: 1,
-        opacity: 1,
-        fillOpacity: 0.8,
-      }).bindPopup(
-        `<b>${escapeHtml(restaurant.name)}</b><br>${escapeHtml(restaurant.menu || "")}` +
-        (ratingStars ? `<br><span style="color:#f59e0b;">${ratingStars}${ratingLabel ? ` (${ratingLabel})` : ""}</span>` : "") +
-        (restaurant.address ? `<br><small>${escapeHtml(restaurant.address)}</small>` : "")
-      );
+        const { id, name, payload, lat, lon } = finalizeEditContext;
 
-      markerLayer.addLayer(marker);
+        try {
+          await updateRestaurant(id, { ...payload, lat, lon });
+          await initRestaurants();
+          cancelFinalizeEdit(false);
+          hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 수정 완료!`;
+        } catch (err) {
+          console.error(err);
+          hint.innerHTML = `<span style="color:#d32f2f;">⚠️ 수정 실패</span> - 위치를 다시 맞춘 뒤 등록 완료를 다시 눌러주세요.`;
+          alert("수정 실패!\n" + (err.message || err));
+        } finally {
+          isFinalizeEditSaving = false;
+          syncMapCursor();
+          updateFinalizeBar();
+        }
+      }
 
-      const div = document.createElement("div");
-      div.className = "restaurant";
-      div.innerHTML =
-        `<b>${escapeHtml(restaurant.name)}</b>` +
-        (ratingStars ? `<div class="restaurant-rating">${ratingStars}${ratingLabel ? ` <span style="color:#666;letter-spacing:0;">${ratingLabel}</span>` : ""}</div>` : "") +
-        `<div>${escapeHtml(restaurant.menu || "")}</div>` +
-        (restaurant.address ? `<div style="font-size:12px;color:#666;">${escapeHtml(restaurant.address)}</div>` : "");
+      function openModal() {
+        cancelFinalizeEdit(false);
+        modalBackdrop.classList.add("open");
+        modalBackdrop.setAttribute("aria-hidden", "false");
+        editingId = null;
+        modalTitle.textContent = "맛집 추가";
+        addBtn.textContent = "추가";
+        setMode("pick");
+        resetFormKeepText(false);
+        setStatus();
+      }
 
-      div.addEventListener("click", () => {
-        map.setView([lat, lon], 16);
-        marker.openPopup();
+      function closeModal() {
+        modalBackdrop.classList.remove("open");
+        modalBackdrop.classList.remove("pick-through");
+        modalBackdrop.setAttribute("aria-hidden", "true");
+        disarmPick();
+        cancelFinalizeEdit(false);
+        clearPendingPin();
+
+        editingId = null;
+        modalTitle.textContent = "맛집 추가";
+        addBtn.textContent = "추가";
+      }
+
+      modalCloseBtn.addEventListener("click", closeModal);
+      cancelBtn.addEventListener("click", closeModal);
+      finalizeSaveBtn.addEventListener("click", () => {
+        completeFinalizeEdit();
+      });
+      finalizeCancelBtn.addEventListener("click", () => {
+        cancelFinalizeEdit(true);
       });
 
-      sidebar.appendChild(div);
-    }
+      modalBackdrop.addEventListener("click", (e) => {
+        if (e.target === modalBackdrop) closeModal();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          // 열린 모달들 닫기(우선순위: 관리 -> 추가)
+          if (manageBackdrop.classList.contains("open")) closeManageModal();
+          else if (modalBackdrop.classList.contains("open")) closeModal();
+          else if (isFinalizeEditArmed) cancelFinalizeEdit(true);
+        }
+      });
 
-    function clearRenderedListOnly() {
-      const nodes = Array.from(sidebar.querySelectorAll(".restaurant"));
-      nodes.forEach(n => n.remove());
-    }
+      // -------------------------------
+      // Mode switching
+      // -------------------------------
+      function setMode(next) {
+        mode = next;
 
-    async function initRestaurants() {
-      hint.innerHTML = "📡 노션에서 불러오는 중...";
-      try {
-        const items = await fetchRestaurantsFromNotion();
+        if (mode === "pick") {
+          tabPick.classList.add("active");
+          tabAddr.classList.remove("active");
 
-        restaurants.length = 0;
-        clearRenderedListOnly();
+          addressBlock.style.display = "none";
+          pickModeBtn.style.display = "inline-block";
+        } else {
+          tabAddr.classList.add("active");
+          tabPick.classList.remove("active");
 
-        // ✅ 지도 마커도 리셋해서 중복 방지
-        markerLayer.clearLayers();
+          addressBlock.style.display = "block";
+          pickModeBtn.style.display = "none";
+          disarmPick();
+        }
+        setStatus();
+      }
 
-        items.forEach((r) => {
-          restaurants.push(r);
-          renderRestaurant(r);
+      tabPick.addEventListener("click", () => setMode("pick"));
+      tabAddr.addEventListener("click", () => setMode("address"));
+
+      // -------------------------------
+      // Rendering
+      // -------------------------------
+      function renderRestaurant(restaurant) {
+        const lat = Number(restaurant.lat);
+        const lon = Number(restaurant.lon);
+        const rating = Number(restaurant.rating);
+        const ratingStars = renderStars(rating);
+        const ratingLabel =
+          Number.isFinite(rating) && rating >= 1 && rating <= 5
+            ? `${rating}/5`
+            : "";
+
+        const marker = L.circleMarker([lat, lon], {
+          radius: 8,
+          fillColor: "#ff0000",
+          color: "#000",
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8,
+        }).bindPopup(
+          `<b>${escapeHtml(restaurant.name)}</b><br>${escapeHtml(restaurant.menu || "")}` +
+            (ratingStars
+              ? `<br><span style="color:#f59e0b;">${ratingStars}${ratingLabel ? ` (${ratingLabel})` : ""}</span>`
+              : "") +
+            (restaurant.address
+              ? `<br><small>${escapeHtml(restaurant.address)}</small>`
+              : ""),
+        );
+
+        markerLayer.addLayer(marker);
+
+        const div = document.createElement("div");
+        div.className = "restaurant";
+        div.innerHTML =
+          `<b>${escapeHtml(restaurant.name)}</b>` +
+          (ratingStars
+            ? `<div class="restaurant-rating">${ratingStars}${ratingLabel ? ` <span style="color:#666;letter-spacing:0;">${ratingLabel}</span>` : ""}</div>`
+            : "") +
+          `<div>${escapeHtml(restaurant.menu || "")}</div>` +
+          (restaurant.address
+            ? `<div style="font-size:12px;color:#666;">${escapeHtml(restaurant.address)}</div>`
+            : "");
+
+        div.addEventListener("click", () => {
+          map.setView([lat, lon], 16);
+          marker.openPopup();
         });
-        hint.innerHTML = `✅ 불러오기 완료: <b>${items.length}</b>개`;
-      } catch (e) {
-        console.error(e);
-        hint.innerHTML = `⚠️ 노션에서 목록을 불러오지 못했어요.<br/><small>${escapeHtml(String(e.message || e))}</small>`;
+
+        sidebar.appendChild(div);
       }
-    }
 
-    function parseLatLon() {
-      const lat = Number(String(latInput.value).trim());
-      const lon = Number(String(lonInput.value).trim());
-      return { lat, lon, ok: Number.isFinite(lat) && Number.isFinite(lon) };
-    }
+      function clearRenderedListOnly() {
+        const nodes = Array.from(sidebar.querySelectorAll(".restaurant"));
+        nodes.forEach((n) => n.remove());
+      }
 
-    function formatCoord(value) {
-      const n = Number(value);
-      if (!Number.isFinite(n)) return "";
-      return n.toFixed(COORD_DECIMALS).replace(/\.?0+$/, "");
-    }
-    
-    function renderStars(rating) {
-      const n = Number(rating);
-      if (!Number.isFinite(n)) return "";
-      const safe = Math.max(1, Math.min(5, Math.round(n)));
-      return "★".repeat(safe) + "☆".repeat(5 - safe);
-    }
+      async function initRestaurants() {
+        hint.innerHTML = "📡 노션에서 불러오는 중...";
+        try {
+          const items = await fetchRestaurantsFromNotion();
 
-    function getRatingValue() {
-      const checked = ratingInputs.find((input) => input.checked);
-      if (!checked) return null;
-      const n = Number(checked.value);
-      if (!Number.isFinite(n) || n < 1 || n > 5) return null;
-      return n;
-    }
+          restaurants.length = 0;
+          clearRenderedListOnly();
 
-    function setRatingValue(value) {
-      const n = Number(value);
-      ratingInputs.forEach((input) => {
-        input.checked = Number(input.value) === n;
-      });
-    }
+          // ✅ 지도 마커도 리셋해서 중복 방지
+          markerLayer.clearLayers();
 
-    function setCoordInputs(lat, lon) {
-      latInput.value = formatCoord(lat);
-      lonInput.value = formatCoord(lon);
-    }
-
-    function clearPendingPin() {
-      if (!pendingPin) return;
-      map.removeLayer(pendingPin);
-      pendingPin = null;
-    }
-
-    function renderPendingPin(lat, lon, label) {
-      clearPendingPin();
-      pendingPin = L.marker([lat, lon], { draggable: true }).addTo(map);
-      pendingPin
-        .bindPopup(`${label}<br>${formatCoord(lat)}, ${formatCoord(lon)}`)
-        .openPopup();
-
-      pendingPin.on("dragend", () => {
-        const p = pendingPin.getLatLng();
-        setCoordInputs(p.lat, p.lng);
-        if (isFinalizeEditArmed && finalizeEditContext) {
-          finalizeEditContext.lat = p.lat;
-          finalizeEditContext.lon = p.lng;
-          hint.innerHTML = `📍 <b>${escapeHtml(finalizeEditContext.name)}</b> 위치를 맞췄으면 <b>등록 완료</b>를 눌러 저장하세요.`;
-        }
-        pendingPin.setPopupContent(`수동 보정 좌표<br>${formatCoord(p.lat)}, ${formatCoord(p.lng)}`);
-        setStatus("coords_ok");
-      });
-    }
-
-    function toCandidate(item) {
-      const lat = Number(item?.lat);
-      const lon = Number(item?.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-      return {
-        lat,
-        lon,
-        displayName: String(item?.display_name || item?.label || "").trim(),
-      };
-    }
-
-    function pickClosestCandidate(items) {
-      const center = map.getCenter();
-      let best = null;
-
-      items.forEach((item) => {
-        const candidate = toCandidate(item);
-        if (!candidate) return;
-
-        const distance = center.distanceTo(L.latLng(candidate.lat, candidate.lon));
-        if (!best || distance < best.distance) {
-          best = { ...candidate, distance };
-        }
-      });
-
-      return best;
-    }
-
-    function mapViewbox() {
-      const b = map.getBounds();
-      return `${b.getWest()},${b.getNorth()},${b.getEast()},${b.getSouth()}`;
-    }
-
-    function buildGeocodeUrl(address, opts = {}) {
-      const params = new URLSearchParams({
-        format: "jsonv2",
-        limit: String(opts.limit ?? 5),
-        q: address,
-        "accept-language": "ko",
-      });
-
-      if (opts.countrycodes) params.set("countrycodes", opts.countrycodes);
-      if (opts.viewbox) params.set("viewbox", opts.viewbox);
-      if (opts.bounded) params.set("bounded", "1");
-
-      return `https://nominatim.openstreetmap.org/search?${params.toString()}`;
-    }
-
-    async function geocodeAddress(address) {
-      const attempts = [
-        { limit: 5, countrycodes: "kr", viewbox: mapViewbox(), bounded: true },
-        { limit: 5, countrycodes: "kr" },
-        { limit: 5 },
-      ];
-
-      for (const opts of attempts) {
-        const url = buildGeocodeUrl(address, opts);
-        const res = await fetch(url, { headers: { "Accept": "application/json" } });
-        if (!res.ok) continue;
-
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const picked = pickClosestCandidate(data);
-          if (picked) return picked;
+          items.forEach((r) => {
+            restaurants.push(r);
+            renderRestaurant(r);
+          });
+          hint.innerHTML = `✅ 불러오기 완료: <b>${items.length}</b>개`;
+        } catch (e) {
+          console.error(e);
+          hint.innerHTML = `⚠️ 노션에서 목록을 불러오지 못했어요.<br/><small>${escapeHtml(String(e.message || e))}</small>`;
         }
       }
 
-      return null;
-    }
-
-    addBtn.addEventListener("click", async () => {
-      const name = String(nameInput.value || "").trim();
-      const menu = String(menuInput.value || "").trim();
-      const rating = getRatingValue();
-      const address = String(addrInput.value || "").trim();
-      const { lat, lon, ok } = parseLatLon();
-
-      if (!name) {
-        alert("가게명을 입력해주세요.");
-        nameInput.focus();
-        return;
+      function parseLatLon() {
+        const lat = Number(String(latInput.value).trim());
+        const lon = Number(String(lonInput.value).trim());
+        return { lat, lon, ok: Number.isFinite(lat) && Number.isFinite(lon) };
       }
 
-      if (editingId) {
-        const seedLat = ok ? lat : map.getCenter().lat;
-        const seedLon = ok ? lon : map.getCenter().lng;
-        armFinalizeEdit({
-          id: editingId,
-          name,
-          payload: { name, menu, rating, address, category: "" },
-          lat: seedLat,
-          lon: seedLon,
+      function formatCoord(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return "";
+        return n.toFixed(COORD_DECIMALS).replace(/\.?0+$/, "");
+      }
+
+      function renderStars(rating) {
+        const n = Number(rating);
+        if (!Number.isFinite(n)) return "";
+        const safe = Math.max(1, Math.min(5, Math.round(n)));
+        return "★".repeat(safe) + "☆".repeat(5 - safe);
+      }
+
+      function getRatingValue() {
+        const checked = ratingInputs.find((input) => input.checked);
+        if (!checked) return null;
+        const n = Number(checked.value);
+        if (!Number.isFinite(n) || n < 1 || n > 5) return null;
+        return n;
+      }
+
+      function setRatingValue(value) {
+        const n = Number(value);
+        ratingInputs.forEach((input) => {
+          input.checked = Number(input.value) === n;
         });
-        return;
       }
 
-      if (!ok) {
-        alert("위도/경도를 올바르게 입력하거나 자동으로 채워주세요.");
-        latInput.focus();
-        return;
+      function setCoordInputs(lat, lon) {
+        latInput.value = formatCoord(lat);
+        lonInput.value = formatCoord(lon);
       }
 
-      const payload = { name, menu, rating, address, lat, lon, category: "" };
-
-      addBtn.disabled = true;
-      const originalText = addBtn.textContent;
-      addBtn.textContent = "저장 중...";
-
-      try {
-        await addRestaurantToNotion(payload);
-        await initRestaurants();
-        hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 추가 완료!`;
-
-        closeModal();
-      } catch (e) {
-        console.error(e);
-        alert("추가 실패!\n" + (e.message || e));
-      } finally {
-        addBtn.disabled = false;
-        addBtn.textContent = originalText;
-      }
-    });
-
-    // -------------------------------
-    // Pick on map
-    // -------------------------------
-    function armPick() {
-      isPickArmed = true;
-      modalBackdrop.classList.add("pick-through");
-      pickModeBtn.textContent = "지도를 클릭해 좌표를 찍어주세요...";
-      pickModeBtn.disabled = true;
-      syncMapCursor();
-
-      setStatus("pick_armed");
-    }
-
-    function disarmPick() {
-      isPickArmed = false;
-      modalBackdrop.classList.remove("pick-through");
-      pickModeBtn.textContent = "지도 클릭으로 좌표 찍기";
-      pickModeBtn.disabled = false;
-      syncMapCursor();
-      setStatus();
-    }
-
-    pickModeBtn.addEventListener("click", () => {
-      armPick();
-    });
-
-    map.on("click", async (e) => {
-      if (isFinalizeEditArmed) {
-        if (isFinalizeEditSaving || !finalizeEditContext) return;
-
-        const lat = e.latlng.lat;
-        const lon = e.latlng.lng;
-        finalizeEditContext.lat = lat;
-        finalizeEditContext.lon = lon;
-
-        setCoordInputs(lat, lon);
-        renderPendingPin(lat, lon, "최종 후보 좌표");
-        hint.innerHTML = `📍 <b>${escapeHtml(finalizeEditContext.name)}</b> 위치를 맞췄으면 <b>등록 완료</b>를 눌러 저장하세요.`;
-        return;
+      function clearPendingPin() {
+        if (!pendingPin) return;
+        map.removeLayer(pendingPin);
+        pendingPin = null;
       }
 
-      if (!modalBackdrop.classList.contains("open")) return;
-      if (!isPickArmed) return;
+      function renderPendingPin(lat, lon, label) {
+        clearPendingPin();
+        pendingPin = L.marker([lat, lon], { draggable: true }).addTo(map);
+        pendingPin
+          .bindPopup(`${label}<br>${formatCoord(lat)}, ${formatCoord(lon)}`)
+          .openPopup();
 
-      const lat = e.latlng.lat;
-      const lon = e.latlng.lng;
-      setCoordInputs(lat, lon);
-
-      renderPendingPin(lat, lon, "선택 좌표");
-      map.setView([lat, lon], 16);
-
-      disarmPick();
-      setStatus("coords_ok");
-    });
-
-    // -------------------------------
-    // Address -> coords
-    // -------------------------------
-    findCoordsBtn.addEventListener("click", async () => {
-      const address = String(addrInput.value || "").trim();
-      if (!address) {
-        alert("주소를 입력해주세요.");
-        addrInput.focus();
-        return;
+        pendingPin.on("dragend", () => {
+          const p = pendingPin.getLatLng();
+          setCoordInputs(p.lat, p.lng);
+          if (isFinalizeEditArmed && finalizeEditContext) {
+            finalizeEditContext.lat = p.lat;
+            finalizeEditContext.lon = p.lng;
+            hint.innerHTML = `📍 <b>${escapeHtml(finalizeEditContext.name)}</b> 위치를 맞췄으면 <b>등록 완료</b>를 눌러 저장하세요.`;
+          }
+          pendingPin.setPopupContent(
+            `수동 보정 좌표<br>${formatCoord(p.lat)}, ${formatCoord(p.lng)}`,
+          );
+          setStatus("coords_ok");
+        });
       }
 
-      setStatus("geocoding");
+      function toCandidate(item) {
+        const lat = Number(item?.lat);
+        const lon = Number(item?.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+        return {
+          lat,
+          lon,
+          displayName: String(item?.display_name || item?.label || "").trim(),
+        };
+      }
 
-      try {
-        const picked = await geocodeAddress(address);
-        if (!picked) {
-          setStatus("geocode_fail");
-          alert("해당 주소로 좌표를 찾지 못했어요. 주소를 더 정확히 적어주세요.");
+      function pickClosestCandidate(items) {
+        const center = map.getCenter();
+        let best = null;
+
+        items.forEach((item) => {
+          const candidate = toCandidate(item);
+          if (!candidate) return;
+
+          const distance = center.distanceTo(
+            L.latLng(candidate.lat, candidate.lon),
+          );
+          if (!best || distance < best.distance) {
+            best = { ...candidate, distance };
+          }
+        });
+
+        return best;
+      }
+
+      function mapViewbox() {
+        const b = map.getBounds();
+        return `${b.getWest()},${b.getNorth()},${b.getEast()},${b.getSouth()}`;
+      }
+
+      function buildGeocodeUrl(address, opts = {}) {
+        const params = new URLSearchParams({
+          format: "jsonv2",
+          limit: String(opts.limit ?? 5),
+          q: address,
+          "accept-language": "ko",
+        });
+
+        if (opts.countrycodes) params.set("countrycodes", opts.countrycodes);
+        if (opts.viewbox) params.set("viewbox", opts.viewbox);
+        if (opts.bounded) params.set("bounded", "1");
+
+        return `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+      }
+
+      async function geocodeAddress(address) {
+        const attempts = [
+          {
+            limit: 5,
+            countrycodes: "kr",
+            viewbox: mapViewbox(),
+            bounded: true,
+          },
+          { limit: 5, countrycodes: "kr" },
+          { limit: 5 },
+        ];
+
+        for (const opts of attempts) {
+          const url = buildGeocodeUrl(address, opts);
+          const res = await fetch(url, {
+            headers: { Accept: "application/json" },
+          });
+          if (!res.ok) continue;
+
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const picked = pickClosestCandidate(data);
+            if (picked) return picked;
+          }
+        }
+
+        return null;
+      }
+
+      addBtn.addEventListener("click", async () => {
+        const name = String(nameInput.value || "").trim();
+        const menu = String(menuInput.value || "").trim();
+        const rating = getRatingValue();
+        const address = String(addrInput.value || "").trim();
+        const { lat, lon, ok } = parseLatLon();
+
+        if (!name) {
+          alert("가게명을 입력해주세요.");
+          nameInput.focus();
           return;
         }
 
-        const { lat, lon } = picked;
-        setCoordInputs(lat, lon);
+        if (editingId) {
+          const seedLat = ok ? lat : map.getCenter().lat;
+          const seedLon = ok ? lon : map.getCenter().lng;
+          armFinalizeEdit({
+            id: editingId,
+            name,
+            payload: { name, menu, rating, address, category: "" },
+            lat: seedLat,
+            lon: seedLon,
+          });
+          return;
+        }
 
-        renderPendingPin(lat, lon, "검색 위치");
-        map.setView([lat, lon], 16);
+        if (!ok) {
+          alert("위도/경도를 올바르게 입력하거나 자동으로 채워주세요.");
+          latInput.focus();
+          return;
+        }
 
-        setStatus("coords_ok");
-      } catch (err) {
-        console.error(err);
-        setStatus("geocode_fail");
-        alert("주소 검색 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
-      }
-    });
+        const payload = { name, menu, rating, address, lat, lon, category: "" };
 
-    // -------------------------------
-    // Form helpers
-    // -------------------------------
-    function resetFormKeepText(keep) {
-      if (!keep) {
-        nameInput.value = "";
-        menuInput.value = "";
-        setRatingValue(null);
-        addrInput.value = "";
-      }
-      latInput.value = "";
-      lonInput.value = "";
-      clearPendingPin();
-      disarmPick();
-    }
+        addBtn.disabled = true;
+        const originalText = addBtn.textContent;
+        addBtn.textContent = "저장 중...";
 
-    ratingClearBtn.addEventListener("click", () => {
-      setRatingValue(null);
-    });
+        try {
+          await addRestaurantToNotion(payload);
+          await initRestaurants();
+          hint.innerHTML = `✅ <b>${escapeHtml(name)}</b> 추가 완료!`;
 
-    function setStatus(state) {
-      const { ok } = parseLatLon();
-      const isOpen = modalBackdrop.classList.contains("open");
-      if (!isOpen) return;
-
-      if (state === "geocoding") {
-        statusBox.innerHTML = `🔎 주소로 좌표 찾는 중...`;
-        return;
-      }
-      if (state === "geocode_fail") {
-        statusBox.innerHTML = `<span class="warn">주소 검색 실패</span><br/>주소를 더 자세히 입력해 주세요.`;
-        return;
-      }
-      if (state === "pick_armed") {
-        statusBox.innerHTML = `📍 <b>지도를 클릭</b>하면 위도/경도가 자동 입력됩니다.`;
-        return;
-      }
-      if (state === "coords_ok" || ok) {
-        statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>핀 드래그로 좌표를 미세 조정한 뒤 <b>${editingId ? "수정 저장" : "추가"}</b>하세요.`;
-        return;
-      }
-
-      if (mode === "pick") {
-        statusBox.innerHTML = `<span class="warn">좌표가 필요해요.</span><br/>아래 <b>지도 클릭으로 좌표 찍기</b>를 누른 뒤 지도에서 위치를 클릭하세요.`;
-      } else {
-        statusBox.innerHTML = `<span class="warn">좌표가 필요해요.</span><br/>주소 입력 후 <b>주소로 좌표찾기</b>를 눌러주세요.`;
-      }
-    }
-
-    [latInput, lonInput].forEach((el) => el.addEventListener("input", () => setStatus()));
-
-    // -------------------------------
-    // Escape HTML
-    // -------------------------------
-    function escapeHtml(str) {
-      return String(str)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    // -------------------------------
-    // Manage modal
-    // -------------------------------
-    const manageBackdrop = document.getElementById("manageBackdrop");
-    const manageCloseBtn = document.getElementById("manageCloseBtn");
-    const manageSearch = document.getElementById("manageSearch");
-    const manageList = document.getElementById("manageList");
-
-    async function openManageModal() {
-      cancelFinalizeEdit(false);
-      manageBackdrop.classList.add("open");
-      manageBackdrop.setAttribute("aria-hidden", "false");
-      manageSearch.value = "";
-
-      // ✅ 데이터가 아직 없으면 먼저 로드
-      if (restaurants.length === 0) {
-        await initRestaurants();
-      }
-
-      renderManageList();
-    }
-
-    function closeManageModal() {
-      manageBackdrop.classList.remove("open");
-      manageBackdrop.setAttribute("aria-hidden", "true");
-    }
-
-    manageCloseBtn.addEventListener("click", closeManageModal);
-    manageBackdrop.addEventListener("click", (e) => {
-      if (e.target === manageBackdrop) closeManageModal();
-    });
-
-    manageSearch.addEventListener("input", renderManageList);
-
-    function renderManageList() {
-      const q = manageSearch.value.trim().toLowerCase();
-
-      const filtered = restaurants.filter(r => {
-        const blob = `${r.name||""} ${r.menu||""} ${r.address||""} ${r.rating||""}`.toLowerCase();
-        return !q || blob.includes(q);
+          closeModal();
+        } catch (e) {
+          console.error(e);
+          alert("추가 실패!\n" + (e.message || e));
+        } finally {
+          addBtn.disabled = false;
+          addBtn.textContent = originalText;
+        }
       });
 
-      manageList.innerHTML = "";
+      // -------------------------------
+      // Pick on map
+      // -------------------------------
+      function armPick() {
+        isPickArmed = true;
+        modalBackdrop.classList.add("pick-through");
+        pickModeBtn.textContent = "지도를 클릭해 좌표를 찍어주세요...";
+        pickModeBtn.disabled = true;
+        syncMapCursor();
 
-      if (filtered.length === 0) {
-        manageList.innerHTML = `<div class="helper">검색 결과가 없습니다.</div>`;
-        return;
+        setStatus("pick_armed");
       }
 
-      filtered.forEach((r) => {
-        const row = document.createElement("div");
-        row.className = "manage-row";
+      function disarmPick() {
+        isPickArmed = false;
+        modalBackdrop.classList.remove("pick-through");
+        pickModeBtn.textContent = "지도 클릭으로 좌표 찍기";
+        pickModeBtn.disabled = false;
+        syncMapCursor();
+        setStatus();
+      }
 
-        row.innerHTML = `
+      pickModeBtn.addEventListener("click", () => {
+        armPick();
+      });
+
+      map.on("click", async (e) => {
+        if (isFinalizeEditArmed) {
+          if (isFinalizeEditSaving || !finalizeEditContext) return;
+
+          const lat = e.latlng.lat;
+          const lon = e.latlng.lng;
+          finalizeEditContext.lat = lat;
+          finalizeEditContext.lon = lon;
+
+          setCoordInputs(lat, lon);
+          renderPendingPin(lat, lon, "최종 후보 좌표");
+          hint.innerHTML = `📍 <b>${escapeHtml(finalizeEditContext.name)}</b> 위치를 맞췄으면 <b>등록 완료</b>를 눌러 저장하세요.`;
+          return;
+        }
+
+        if (!modalBackdrop.classList.contains("open")) return;
+        if (!isPickArmed) return;
+
+        const lat = e.latlng.lat;
+        const lon = e.latlng.lng;
+        setCoordInputs(lat, lon);
+
+        renderPendingPin(lat, lon, "선택 좌표");
+        map.setView([lat, lon], 16);
+
+        disarmPick();
+        setStatus("coords_ok");
+      });
+
+      // -------------------------------
+      // Address -> coords
+      // -------------------------------
+      findCoordsBtn.addEventListener("click", async () => {
+        const address = String(addrInput.value || "").trim();
+        if (!address) {
+          alert("주소를 입력해주세요.");
+          addrInput.focus();
+          return;
+        }
+
+        setStatus("geocoding");
+
+        try {
+          const picked = await geocodeAddress(address);
+          if (!picked) {
+            setStatus("geocode_fail");
+            alert(
+              "해당 주소로 좌표를 찾지 못했어요. 주소를 더 정확히 적어주세요.",
+            );
+            return;
+          }
+
+          const { lat, lon } = picked;
+          setCoordInputs(lat, lon);
+
+          renderPendingPin(lat, lon, "검색 위치");
+          map.setView([lat, lon], 16);
+
+          setStatus("coords_ok");
+        } catch (err) {
+          console.error(err);
+          setStatus("geocode_fail");
+          alert("주소 검색 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.");
+        }
+      });
+
+      // -------------------------------
+      // Form helpers
+      // -------------------------------
+      function resetFormKeepText(keep) {
+        if (!keep) {
+          nameInput.value = "";
+          menuInput.value = "";
+          setRatingValue(null);
+          addrInput.value = "";
+        }
+        latInput.value = "";
+        lonInput.value = "";
+        clearPendingPin();
+        disarmPick();
+      }
+
+      ratingClearBtn.addEventListener("click", () => {
+        setRatingValue(null);
+      });
+
+      function setStatus(state) {
+        const { ok } = parseLatLon();
+        const isOpen = modalBackdrop.classList.contains("open");
+        if (!isOpen) return;
+
+        if (state === "geocoding") {
+          statusBox.innerHTML = `🔎 주소로 좌표 찾는 중...`;
+          return;
+        }
+        if (state === "geocode_fail") {
+          statusBox.innerHTML = `<span class="warn">주소 검색 실패</span><br/>주소를 더 자세히 입력해 주세요.`;
+          return;
+        }
+        if (state === "pick_armed") {
+          statusBox.innerHTML = `📍 <b>지도를 클릭</b>하면 위도/경도가 자동 입력됩니다.`;
+          return;
+        }
+        if (state === "coords_ok" || ok) {
+          statusBox.innerHTML = `<span class="ok">좌표 준비 완료</span><br/>핀 드래그로 좌표를 미세 조정한 뒤 <b>${editingId ? "수정 저장" : "추가"}</b>하세요.`;
+          return;
+        }
+
+        if (mode === "pick") {
+          statusBox.innerHTML = `<span class="warn">좌표가 필요해요.</span><br/>아래 <b>지도 클릭으로 좌표 찍기</b>를 누른 뒤 지도에서 위치를 클릭하세요.`;
+        } else {
+          statusBox.innerHTML = `<span class="warn">좌표가 필요해요.</span><br/>주소 입력 후 <b>주소로 좌표찾기</b>를 눌러주세요.`;
+        }
+      }
+
+      [latInput, lonInput].forEach((el) =>
+        el.addEventListener("input", () => setStatus()),
+      );
+
+      // -------------------------------
+      // Escape HTML
+      // -------------------------------
+      function escapeHtml(str) {
+        return String(str)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      // -------------------------------
+      // Manage modal
+      // -------------------------------
+      const manageBackdrop = document.getElementById("manageBackdrop");
+      const manageCloseBtn = document.getElementById("manageCloseBtn");
+      const manageSearch = document.getElementById("manageSearch");
+      const manageList = document.getElementById("manageList");
+
+      async function openManageModal() {
+        cancelFinalizeEdit(false);
+        manageBackdrop.classList.add("open");
+        manageBackdrop.setAttribute("aria-hidden", "false");
+        manageSearch.value = "";
+
+        // ✅ 데이터가 아직 없으면 먼저 로드
+        if (restaurants.length === 0) {
+          await initRestaurants();
+        }
+
+        renderManageList();
+      }
+
+      function closeManageModal() {
+        manageBackdrop.classList.remove("open");
+        manageBackdrop.setAttribute("aria-hidden", "true");
+      }
+
+      manageCloseBtn.addEventListener("click", closeManageModal);
+      manageBackdrop.addEventListener("click", (e) => {
+        if (e.target === manageBackdrop) closeManageModal();
+      });
+
+      manageSearch.addEventListener("input", renderManageList);
+
+      function renderManageList() {
+        const q = manageSearch.value.trim().toLowerCase();
+
+        const filtered = restaurants.filter((r) => {
+          const blob =
+            `${r.name || ""} ${r.menu || ""} ${r.address || ""} ${r.rating || ""}`.toLowerCase();
+          return !q || blob.includes(q);
+        });
+
+        manageList.innerHTML = "";
+
+        if (filtered.length === 0) {
+          manageList.innerHTML = `<div class="helper">검색 결과가 없습니다.</div>`;
+          return;
+        }
+
+        filtered.forEach((r) => {
+          const row = document.createElement("div");
+          row.className = "manage-row";
+
+          row.innerHTML = `
           <div class="manage-top">
             <div>
               <div class="manage-name">${escapeHtml(r.name)}</div>
@@ -1232,61 +1401,61 @@
           </div>
         `;
 
-        const [editBtn, delBtn] = row.querySelectorAll("button");
+          const [editBtn, delBtn] = row.querySelectorAll("button");
 
-        editBtn.addEventListener("click", () => {
-          closeManageModal();
-          openModalForEdit(r);
+          editBtn.addEventListener("click", () => {
+            closeManageModal();
+            openModalForEdit(r);
+          });
+
+          delBtn.addEventListener("click", async () => {
+            const ok = confirm(`정말 삭제할까요?\n\n${r.name}`);
+            if (!ok) return;
+
+            try {
+              await deleteRestaurant(r.id);
+              await initRestaurants();
+              renderManageList();
+              alert("삭제 완료!");
+            } catch (e) {
+              console.error(e);
+              alert("삭제 실패!\n" + (e.message || e));
+            }
+          });
+
+          manageList.appendChild(row);
         });
-
-        delBtn.addEventListener("click", async () => {
-          const ok = confirm(`정말 삭제할까요?\n\n${r.name}`);
-          if (!ok) return;
-
-          try {
-            await deleteRestaurant(r.id);
-            await initRestaurants();
-            renderManageList();
-            alert("삭제 완료!");
-          } catch (e) {
-            console.error(e);
-            alert("삭제 실패!\n" + (e.message || e));
-          }
-        });
-
-        manageList.appendChild(row);
-      });
-    }
-
-    function openModalForEdit(r) {
-      cancelFinalizeEdit(false);
-      modalBackdrop.classList.add("open");
-      modalBackdrop.setAttribute("aria-hidden", "false");
-
-      editingId = r.id;
-
-      // 편집은 주소모드가 더 자연스러워서 주소 블록 보여주기
-      setMode("address");
-
-      nameInput.value = r.name || "";
-      menuInput.value = r.menu || "";
-      setRatingValue(r.rating);
-      addrInput.value = r.address || "";
-      setCoordInputs(r.lat, r.lon);
-      if (Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon))) {
-        renderPendingPin(Number(r.lat), Number(r.lon), "현재 저장 위치");
       }
 
-      modalTitle.textContent = "맛집 수정";
-      addBtn.textContent = "수정 저장";
+      function openModalForEdit(r) {
+        cancelFinalizeEdit(false);
+        modalBackdrop.classList.add("open");
+        modalBackdrop.setAttribute("aria-hidden", "false");
 
-      setStatus("coords_ok");
-    }
+        editingId = r.id;
 
-    // -------------------------------
-    // Start
-    // -------------------------------
-    initRestaurants();
-  </script>
-</body>
+        // 편집은 주소모드가 더 자연스러워서 주소 블록 보여주기
+        setMode("address");
+
+        nameInput.value = r.name || "";
+        menuInput.value = r.menu || "";
+        setRatingValue(r.rating);
+        addrInput.value = r.address || "";
+        setCoordInputs(r.lat, r.lon);
+        if (Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon))) {
+          renderPendingPin(Number(r.lat), Number(r.lon), "현재 저장 위치");
+        }
+
+        modalTitle.textContent = "맛집 수정";
+        addBtn.textContent = "수정 저장";
+
+        setStatus("coords_ok");
+      }
+
+      // -------------------------------
+      // Start
+      // -------------------------------
+      initRestaurants();
+    </script>
+  </body>
 </html>
