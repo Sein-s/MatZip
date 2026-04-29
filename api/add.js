@@ -17,6 +17,11 @@ export default async function handler(req, res) {
     const menu = String(body?.menu ?? "").trim();
     const address = String(body?.address ?? "").trim();
     const category = String(body?.category ?? "").trim();
+    const ratingRaw = body?.rating;
+    const rating = ratingRaw === null || ratingRaw === undefined || ratingRaw === ""
+      ? null
+      : Number(ratingRaw);
+    const hasValidRating = rating === null || (Number.isFinite(rating) && rating >= 1 && rating <= 5);
 
     const lat = Number(body?.lat);
     const lon = Number(body?.lon);
@@ -29,6 +34,9 @@ export default async function handler(req, res) {
     if (!name) return res.status(400).json({ error: "name is required" });
     if (!hasValidCoords) {
       return res.status(400).json({ error: "lat/lon must be valid WGS84 coordinates" });
+    }
+    if (!hasValidRating) {
+      return res.status(400).json({ error: "rating must be null or a number between 1 and 5" });
     }
 
     const notionRes = await fetch("https://api.notion.com/v1/pages", {
@@ -43,6 +51,7 @@ export default async function handler(req, res) {
         properties: {
           Name: { title: [{ text: { content: name } }] },
           menu: { rich_text: menu ? [{ text: { content: menu } }] : [] },
+          rating: { number: rating },
           address: { rich_text: address ? [{ text: { content: address } }] : [] },
           lat: { number: lat },
           lon: { number: lon },

@@ -19,6 +19,12 @@
       border-bottom:1px solid #e0e0e0;
     }
     .restaurant b{ display:block; }
+    .restaurant-rating{
+      margin-top:4px;
+      font-size:13px;
+      color:#f59e0b;
+      letter-spacing:1px;
+    }
 
     /* 사이드바 힌트 */
     .hint{
@@ -196,6 +202,36 @@
       border-color:#1976d2;
       box-shadow:0 0 0 3px rgba(25,118,210,.12);
     }
+    .star-rating{
+      display:flex;
+      flex-direction:row-reverse;
+      justify-content:flex-end;
+      gap:4px;
+    }
+    .star-rating input{
+      display:none;
+    }
+    .star-rating label{
+      margin:0;
+      cursor:pointer;
+      font-size:24px;
+      line-height:1;
+      color:#d1d5db;
+      transition:color .12s ease;
+    }
+    .star-rating label:hover,
+    .star-rating label:hover ~ label,
+    .star-rating input:checked ~ label{
+      color:#f59e0b;
+    }
+    .star-clear{
+      margin-top:6px;
+      font-size:12px;
+      color:#666;
+      cursor:pointer;
+      display:inline-block;
+      user-select:none;
+    }
 
     .helper{
       font-size:12px;
@@ -314,6 +350,23 @@
           <div>
             <label for="menuInput">설명</label>
             <textarea id="menuInput" placeholder="예: 추천 메뉴, 웨이팅, 가격 등"></textarea>
+          </div>
+          
+          <div>
+            <label>별점 (5점 만점)</label>
+            <div class="star-rating" role="radiogroup" aria-label="별점 선택">
+              <input type="radio" id="rating5" name="ratingInput" value="5" />
+              <label for="rating5" title="5점">★</label>
+              <input type="radio" id="rating4" name="ratingInput" value="4" />
+              <label for="rating4" title="4점">★</label>
+              <input type="radio" id="rating3" name="ratingInput" value="3" />
+              <label for="rating3" title="3점">★</label>
+              <input type="radio" id="rating2" name="ratingInput" value="2" />
+              <label for="rating2" title="2점">★</label>
+              <input type="radio" id="rating1" name="ratingInput" value="1" />
+              <label for="rating1" title="1점">★</label>
+            </div>
+            <span class="star-clear" id="ratingClearBtn">별점 선택 해제</span>
           </div>
 
           <div id="addressBlock">
@@ -529,6 +582,8 @@
 
     const nameInput = document.getElementById("nameInput");
     const menuInput = document.getElementById("menuInput");
+    const ratingInputs = Array.from(document.querySelectorAll("input[name='ratingInput']"));
+    const ratingClearBtn = document.getElementById("ratingClearBtn");
     const addrInput = document.getElementById("addrInput");
     const latInput = document.getElementById("latInput");
     const lonInput = document.getElementById("lonInput");
@@ -702,6 +757,9 @@
     function renderRestaurant(restaurant) {
       const lat = Number(restaurant.lat);
       const lon = Number(restaurant.lon);
+      const rating = Number(restaurant.rating);
+      const ratingStars = renderStars(rating);
+      const ratingLabel = Number.isFinite(rating) && rating >= 1 && rating <= 5 ? `${rating}/5` : "";
 
       const marker = L.circleMarker([lat, lon], {
         radius: 8,
@@ -712,6 +770,7 @@
         fillOpacity: 0.8,
       }).bindPopup(
         `<b>${escapeHtml(restaurant.name)}</b><br>${escapeHtml(restaurant.menu || "")}` +
+        (ratingStars ? `<br><span style="color:#f59e0b;">${ratingStars}${ratingLabel ? ` (${ratingLabel})` : ""}</span>` : "") +
         (restaurant.address ? `<br><small>${escapeHtml(restaurant.address)}</small>` : "")
       );
 
@@ -721,6 +780,7 @@
       div.className = "restaurant";
       div.innerHTML =
         `<b>${escapeHtml(restaurant.name)}</b>` +
+        (ratingStars ? `<div class="restaurant-rating">${ratingStars}${ratingLabel ? ` <span style="color:#666;letter-spacing:0;">${ratingLabel}</span>` : ""}</div>` : "") +
         `<div>${escapeHtml(restaurant.menu || "")}</div>` +
         (restaurant.address ? `<div style="font-size:12px;color:#666;">${escapeHtml(restaurant.address)}</div>` : "");
 
@@ -769,6 +829,28 @@
       const n = Number(value);
       if (!Number.isFinite(n)) return "";
       return n.toFixed(COORD_DECIMALS).replace(/\.?0+$/, "");
+    }
+    
+    function renderStars(rating) {
+      const n = Number(rating);
+      if (!Number.isFinite(n)) return "";
+      const safe = Math.max(1, Math.min(5, Math.round(n)));
+      return "★".repeat(safe) + "☆".repeat(5 - safe);
+    }
+
+    function getRatingValue() {
+      const checked = ratingInputs.find((input) => input.checked);
+      if (!checked) return null;
+      const n = Number(checked.value);
+      if (!Number.isFinite(n) || n < 1 || n > 5) return null;
+      return n;
+    }
+
+    function setRatingValue(value) {
+      const n = Number(value);
+      ratingInputs.forEach((input) => {
+        input.checked = Number(input.value) === n;
+      });
     }
 
     function setCoordInputs(lat, lon) {
@@ -875,6 +957,7 @@
     addBtn.addEventListener("click", async () => {
       const name = String(nameInput.value || "").trim();
       const menu = String(menuInput.value || "").trim();
+      const rating = getRatingValue();
       const address = String(addrInput.value || "").trim();
       const { lat, lon, ok } = parseLatLon();
 
@@ -890,7 +973,7 @@
         armFinalizeEdit({
           id: editingId,
           name,
-          payload: { name, menu, address, category: "" },
+          payload: { name, menu, rating, address, category: "" },
           lat: seedLat,
           lon: seedLon,
         });
@@ -903,7 +986,7 @@
         return;
       }
 
-      const payload = { name, menu, address, lat, lon, category: "" };
+      const payload = { name, menu, rating, address, lat, lon, category: "" };
 
       addBtn.disabled = true;
       const originalText = addBtn.textContent;
@@ -1021,6 +1104,7 @@
       if (!keep) {
         nameInput.value = "";
         menuInput.value = "";
+        setRatingValue(null);
         addrInput.value = "";
       }
       latInput.value = "";
@@ -1028,6 +1112,10 @@
       clearPendingPin();
       disarmPick();
     }
+
+    ratingClearBtn.addEventListener("click", () => {
+      setRatingValue(null);
+    });
 
     function setStatus(state) {
       const { ok } = parseLatLon();
@@ -1110,7 +1198,7 @@
       const q = manageSearch.value.trim().toLowerCase();
 
       const filtered = restaurants.filter(r => {
-        const blob = `${r.name||""} ${r.menu||""} ${r.address||""}`.toLowerCase();
+        const blob = `${r.name||""} ${r.menu||""} ${r.address||""} ${r.rating||""}`.toLowerCase();
         return !q || blob.includes(q);
       });
 
@@ -1130,6 +1218,7 @@
             <div>
               <div class="manage-name">${escapeHtml(r.name)}</div>
               <div class="manage-meta">
+                ${renderStars(r.rating) ? `<span style="color:#f59e0b;">${renderStars(r.rating)} (${Number(r.rating)}/5)</span><br/>` : ""}
                 ${r.menu ? escapeHtml(r.menu) : ""}
                 ${r.address ? `<br/>${escapeHtml(r.address)}` : ""}
                 <br/><span style="color:#999;">${Number(r.lat).toFixed(6)}, ${Number(r.lon).toFixed(6)}</span>
@@ -1181,6 +1270,7 @@
 
       nameInput.value = r.name || "";
       menuInput.value = r.menu || "";
+      setRatingValue(r.rating);
       addrInput.value = r.address || "";
       setCoordInputs(r.lat, r.lon);
       if (Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon))) {

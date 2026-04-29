@@ -36,6 +36,7 @@ export default async function handler(req, res) {
 
       const name = p?.Name?.title?.[0]?.plain_text ?? "";
       const menu = p?.menu?.rich_text?.[0]?.plain_text ?? "";
+      const rating = p?.rating?.number ?? null;
       const address = p?.address?.rich_text?.[0]?.plain_text ?? "";
       const lat = p?.lat?.number ?? null;
       const lon = p?.lon?.number ?? null;
@@ -45,6 +46,7 @@ export default async function handler(req, res) {
         id: page.id,
         name,
         menu,
+        rating,
         address,
         lat,
         lon,
