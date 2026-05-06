@@ -1387,7 +1387,7 @@
             <div>
               <div class="manage-name">${escapeHtml(r.name)}</div>
               <div class="manage-meta">
-                ${renderStars(r.rating) ? `<span style="color:#f59e0b;">${renderStars(r.rating)} (${Number(r.rating)}/5)</span><br/>` : ""}
+                ${renderStars(r.rating) ? `<span style="color:#f59e0b;">${renderStars(r.rating)})</span><br/>` : ""}
                 ${r.menu ? escapeHtml(r.menu) : ""}
                 ${r.address ? `<br/>${escapeHtml(r.address)}` : ""}
                 <br/><span style="color:#999;">${Number(r.lat).toFixed(6)}, ${Number(r.lon).toFixed(6)}</span>
